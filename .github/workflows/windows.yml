@@ -1,0 +1,101 @@
+name: Windows build and draft release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - name: Locate Inno Setup
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path -LiteralPath $compiler)) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+          }
+          if (!(Test-Path -LiteralPath $compiler)) { throw 'ISCC.exe missing' }
+          "ISCC_PATH=$compiler" >> $env:GITHUB_ENV
+      - name: Test and build installer
+        run: |
+          New-Item -ItemType Directory -Force verification | Out-Null
+          ./build_windows.ps1 -Python python -ISCC $env:ISCC_PATH *>&1 | Tee-Object verification/build.log
+          if (!$?) { throw 'Build failed' }
+      - name: Prepare release assets and checksums
+        run: |
+          New-Item -ItemType Directory -Force release-assets | Out-Null
+          Copy-Item installer/*.exe release-assets/
+          git archive --format=zip --prefix=CapturesXHTML-1.2.0/ --output=release-assets/CapturesXHTML-1.2.0-sources.zip HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Source archive failed' }
+          ./.venv/Scripts/python.exe -m pip freeze > verification/environment.txt
+          "Commit: $env:GITHUB_SHA`nRun: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID`nRunner: $env:RUNNER_OS $env:RUNNER_ARCH`nISCC: $((Get-Item $env:ISCC_PATH).VersionInfo.FileVersion)`nUnsigned build; no desktop capture or installation test performed by CI." | Set-Content verification/BUILD.txt
+          Copy-Item VERIFICATION.md verification/LOCAL-VERIFICATION.md
+          Copy-Item build/CapturesXHTML/warn-CapturesXHTML.txt verification/ -ErrorAction SilentlyContinue
+          Compress-Archive -Path verification/* -DestinationPath release-assets/CapturesXHTML-1.2.0-verification.zip
+          Get-ChildItem release-assets -File | Sort-Object Name | ForEach-Object {
+            $hash = Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256
+            "$($hash.Hash.ToLower())  $($_.Name)"
+          } | Set-Content -Encoding ascii release-assets/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CapturesXHTML-windows-${{ github.sha }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-diagnostics-${{ github.run_id }}
+          path: verification/*
+
+  draft-release:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: CapturesXHTML-windows-${{ github.sha }}
+          path: release-assets
+      - name: Create or update draft only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=v1.2.0
+          gh release list --json tagName,isDraft --limit 100 > releases.json
+          state=$(python -c 'import json; r=[x for x in json.load(open("releases.json")) if x["tagName"]=="v1.2.0"]; print("missing" if not r else "draft" if r[0]["isDraft"] else "published")')
+          if [ "$state" = published ]; then
+            echo 'Published release unchanged; build available as Actions artifact.'
+            exit 0
+          fi
+          if [ "$state" = missing ]; then
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title 'CapturesXHTML 1.2.0 — Windows x64' --notes-file RELEASE_NOTES.md
+          else
+            gh release edit "$tag" --draft --target "$GITHUB_SHA" --notes-file RELEASE_NOTES.md
+          fi
+          gh release upload "$tag" release-assets/* --clobber

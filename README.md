@@ -10,7 +10,11 @@ Cette version reprend le code Python/Tkinter de CapturesXHTML v1.1. Elle ajoute 
 
 ## Disponibilité
 
-Ce dépôt contient les sources, les scripts de build et les tests. Aucun installateur n'est encore publié dans les Releases GitHub. Pour obtenir le Setup, suivre la section Recompiler.
+Ce dépôt contient les sources, les scripts de build et les tests. La [compilation automatique Windows](https://github.com/RauVolt/CapturesXHTML/actions/workflows/windows.yml) produit le Setup, les sources, un rapport et les empreintes SHA256. Les téléchargements sont disponibles dans les artefacts du run réussi (30 jours, connexion GitHub requise).
+
+Sur `main`, une compilation réussie prépare également une Release **brouillon** v1.2.0, visible par le mainteneur dans [Releases](https://github.com/RauVolt/CapturesXHTML/releases). Le mainteneur peut la relire et la publier après les essais manuels. Une Release déjà publiée n'est jamais remplacée par ce workflow.
+
+Les pull requests déclenchent seulement la compilation et les tests, sans droit de publier une Release. Le lancement manuel est disponible dans Actions → Windows build and draft release → Run workflow. Aucun secret SignPath n'est nécessaire pour cette compilation non signée.
 
 ## Installer et utiliser
 

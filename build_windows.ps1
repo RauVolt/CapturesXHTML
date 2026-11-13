@@ -17,8 +17,9 @@ $BuildPython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 Check-Exit 'Dependances'
 & $BuildPython -m unittest discover -s tests -v
 Check-Exit 'Tests'
-& $BuildPython -m PyInstaller --noconfirm --clean --onedir --windowed --noupx --name CapturesXHTML app.py
+& $BuildPython -m PyInstaller --noconfirm --clean --onedir --windowed --noupx --version-file packaging/version_info.txt --name CapturesXHTML app.py
 Check-Exit 'PyInstaller'
+Copy-Item LICENSE dist\CapturesXHTML\LICENSE.txt
 & $ISCC packaging\CapturesXHTML.iss
 Check-Exit 'Inno Setup'
 Get-FileHash installer\CapturesXHTML-1.2.0-Setup.exe -Algorithm SHA256

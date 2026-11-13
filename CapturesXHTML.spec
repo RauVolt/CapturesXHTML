@@ -27,6 +27,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,
+    version='packaging/version_info.txt',
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
