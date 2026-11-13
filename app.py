@@ -151,221 +151,381 @@ def export_xhtml(path, name, captures):
             os.unlink(partial)
 
 
+def atomic_json(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, partial = tempfile.mkstemp(dir=path.parent, prefix='.state-', suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as out:
+            json.dump(data, out, ensure_ascii=False, indent=2)
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(partial, path)
+    finally:
+        if os.path.exists(partial):
+            os.unlink(partial)
+
+
+class History:
+    def __init__(self, path):
+        self.path = Path(path)
+        try:
+            data = json.loads(self.path.read_text(encoding='utf-8'))
+            self.items = [x for x in data if isinstance(x, dict) and
+                          isinstance(x.get('title'), str) and isinstance(x.get('path'), str)][:5]
+        except (OSError, ValueError, TypeError):
+            self.items = []
+
+    def record(self, title, path):
+        absolute = str(Path(path).resolve())
+        items = [{'title': title, 'path': absolute}] + [
+            x for x in self.items if os.path.normcase(x['path']) != os.path.normcase(absolute)]
+        atomic_json(self.path, items[:5])
+        self.items = items[:5]
+
+
+class ProgressiveSession:
+    """Used only by the single background worker; PNGs survive a save failure."""
+    def __init__(self, target, title, bounds, temp_root):
+        self.target, self.title, self.bounds = Path(target), title, bounds
+        self.captures = []
+        self.sequence = 0
+        self.saved_count = 0
+        Path(temp_root).mkdir(parents=True, exist_ok=True)
+        self.folder = Path(tempfile.mkdtemp(prefix='session-', dir=temp_root))
+        try:
+            self.save()
+        except Exception:
+            self.cleanup()
+            raise
+
+    def capture(self):
+        self.sequence += 1
+        stamp = datetime.now().astimezone().isoformat(timespec='seconds')
+        filename = self.folder / f'capture_{self.sequence:06d}.png'
+        image = ImageGrab.grab(bbox=self.bounds, all_screens=True)
+        try:
+            image.save(filename, format='PNG')
+        finally:
+            image.close()
+        self.captures.append((stamp, filename))
+        # This local manifest permits manual recovery even if the XHTML update fails.
+        atomic_json(self.folder / 'session.json', {
+            'title': self.title, 'target': str(self.target),
+            'captures': [(t, str(p)) for t, p in self.captures]})
+        self.save()
+
+    def save(self):
+        export_xhtml(self.target, self.title, self.captures)
+        self.saved_count = len(self.captures)
+
+    def cleanup(self):
+        for p in self.folder.iterdir():
+            p.unlink()
+        self.folder.rmdir()
+
+
 class CaptureApp:
     def __init__(self, root):
         self.root = root
-        root.title('CapturesXHTML 1.2.0')
-        root.geometry('610x350')
+        root.title('CapturesXHTML · 1.3')
+        root.geometry('880x790')
+        root.minsize(760, 730)
+        root.configure(bg='#f4f6fa')
         self.events = queue.Queue()
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='CaptureWorker')
         self.session = None
-        self.captures = []
         self.pending = 0
-        self.capture_sequence = 0
-        self.active = False
-        self.finishing = False
+        self.active = self.finishing = self.initializing = self.closing = False
         self.monitors = []
+        self.data_root = Path(os.environ['LOCALAPPDATA']) / 'CapturesXHTML'
+        self.history = History(self.data_root / 'recent.json')
         self.document = tk.StringVar()
         self.monitor_choice = tk.StringVar()
-        self.status = tk.StringVar(value='Prêt à démarrer')
-        frame = ttk.Frame(root, padding=18)
-        frame.pack(fill='both', expand=True)
-        ttk.Label(frame, text='Nom du document').pack(anchor='w')
-        self.name_entry = ttk.Entry(frame, textvariable=self.document)
-        self.name_entry.pack(fill='x', pady=(3, 12))
-        ttk.Label(frame, text='Écran à capturer').pack(anchor='w')
-        self.combo = ttk.Combobox(frame, textvariable=self.monitor_choice, state='readonly')
-        self.combo.pack(fill='x', pady=(3, 12))
-        self.refresh_btn = ttk.Button(frame, text='Actualiser les écrans', command=self.refresh_monitors)
-        self.refresh_btn.pack(anchor='w')
-        buttons = ttk.Frame(frame)
-        buttons.pack(fill='x', pady=14)
-        self.start_btn = ttk.Button(buttons, text='Démarrer', command=self.start)
-        self.start_btn.pack(side='left')
-        self.end_btn = ttk.Button(buttons, text='Terminer', command=self.finish, state='disabled')
-        self.end_btn.pack(side='left', padx=12)
-        ttk.Label(frame, textvariable=self.status, wraplength=570).pack(anchor='w')
-        ttk.Label(frame, text='Pendant la session : Impr. écran = capture de l’écran sélectionné.').pack(anchor='w', pady=8)
+        self.status = tk.StringVar(value='Prêt pour une nouvelle session')
+        self.destination = tk.StringVar(value='Le fichier sera choisi avant la première capture.')
+        self.counter = tk.StringVar(value='0 capture')
+        self._design()
+        self.refresh_history()
         self.refresh_monitors()
         self.hook = PrintScreenHook(lambda: self.events.put(('key', None)))
         self.hook_ok = self.hook.start()
         if not self.hook_ok:
-            self.status.set(self.hook.error or 'Impossible d’activer la touche Impr. écran.')
-            self.start_btn.config(state='disabled')
+            self.status.set('Impr. écran indisponible · utilisez le bouton Capturer')
         root.after(40, self.process_events)
         root.protocol('WM_DELETE_WINDOW', self.on_close)
+
+    def _design(self):
+        style = ttk.Style(self.root)
+        style.theme_use('clam')
+        style.configure('.', font=('Segoe UI', 10), background='#f4f6fa', foreground='#17243b')
+        style.configure('TFrame', background='#f4f6fa')
+        style.configure('Card.TFrame', background='white')
+        style.configure('TLabel', background='white', foreground='#17243b')
+        style.configure('Muted.TLabel', foreground='#64748b', font=('Segoe UI', 9))
+        style.configure('Title.TLabel', background='#f4f6fa', font=('Segoe UI Semibold', 25))
+        style.configure('Subtitle.TLabel', background='#f4f6fa', foreground='#64748b')
+        style.configure('Heading.TLabel', font=('Segoe UI Semibold', 12))
+        style.configure('Count.TLabel', font=('Segoe UI Semibold', 17), foreground='#2563eb')
+        style.configure('TEntry', padding=10, fieldbackground='#f8fafc', bordercolor='#dce3ed')
+        style.configure('TCombobox', padding=9, fieldbackground='#f8fafc', arrowsize=14)
+        style.configure('TButton', padding=(16, 10), background='#e9eef5', borderwidth=0)
+        style.map('TButton', background=[('active', '#dbe4ef')], foreground=[('disabled', '#94a3b8')])
+        style.configure('Primary.TButton', background='#2563eb', foreground='white')
+        style.map('Primary.TButton', background=[('disabled', '#cbd5e1'), ('active', '#1d4ed8')])
+        shell = ttk.Frame(self.root, padding=(30, 24))
+        shell.pack(fill='both', expand=True)
+        ttk.Label(shell, text='CapturesXHTML', style='Title.TLabel').pack(anchor='w')
+        ttk.Label(shell, text='Vos captures. Un seul document. Enregistré au fil de la session.',
+                  style='Subtitle.TLabel').pack(anchor='w', pady=(3, 18))
+        card = ttk.Frame(shell, padding=22, style='Card.TFrame')
+        card.pack(fill='x')
+        ttk.Label(card, text='Nouvelle session', style='Heading.TLabel').pack(anchor='w')
+        fields = ttk.Frame(card, style='Card.TFrame')
+        fields.pack(fill='x', pady=(16, 12))
+        fields.columnconfigure(0, weight=1)
+        fields.columnconfigure(1, weight=1)
+        ttk.Label(fields, text='Titre du document', style='Muted.TLabel').grid(row=0, column=0, sticky='w')
+        ttk.Label(fields, text='Écran à capturer', style='Muted.TLabel').grid(row=0, column=1, sticky='w', padx=(16, 0))
+        self.name_entry = ttk.Entry(fields, textvariable=self.document)
+        self.name_entry.grid(row=1, column=0, sticky='ew', pady=(5, 0))
+        self.combo = ttk.Combobox(fields, textvariable=self.monitor_choice, state='readonly')
+        self.combo.grid(row=1, column=1, sticky='ew', padx=(16, 0), pady=(5, 0))
+        buttons = ttk.Frame(card, style='Card.TFrame')
+        buttons.pack(fill='x')
+        self.start_btn = ttk.Button(buttons, text='Choisir le fichier et démarrer', command=self.start, style='Primary.TButton')
+        self.start_btn.pack(side='left')
+        self.refresh_btn = ttk.Button(buttons, text='Actualiser les écrans', command=self.refresh_monitors)
+        self.refresh_btn.pack(side='right')
+        live = ttk.Frame(shell, padding=22, style='Card.TFrame')
+        live.pack(fill='x', pady=14)
+        ttk.Label(live, textvariable=self.counter, style='Count.TLabel').pack(anchor='w')
+        ttk.Label(live, textvariable=self.status, wraplength=740).pack(anchor='w', pady=(6, 3))
+        ttk.Label(live, textvariable=self.destination, style='Muted.TLabel', wraplength=740).pack(anchor='w', pady=(0, 12))
+        row = ttk.Frame(live, style='Card.TFrame')
+        row.pack(fill='x')
+        self.capture_btn = ttk.Button(row, text='Capturer · Impr. écran', command=self.capture, state='disabled', style='Primary.TButton')
+        self.capture_btn.pack(side='left')
+        self.end_btn = ttk.Button(row, text='Terminer', command=self.finish, state='disabled')
+        self.end_btn.pack(side='left', padx=10)
+        self.folder_btn = ttk.Button(row, text='Ouvrir le dossier', command=self.open_last_folder)
+        self.folder_btn.pack(side='right')
+        recent = ttk.Frame(shell, padding=(22, 18), style='Card.TFrame')
+        recent.pack(fill='both', expand=True)
+        ttk.Label(recent, text='Documents récents', style='Heading.TLabel').pack(anchor='w')
+        ttk.Label(recent, text='Les 5 derniers fichiers enregistrés sur cet ordinateur', style='Muted.TLabel').pack(anchor='w', pady=(2, 8))
+        self.recent_rows = []
+        for _ in range(5):
+            box = ttk.Frame(recent, style='Card.TFrame')
+            box.pack(fill='x', pady=4)
+            title = ttk.Label(box, text='', font=('Segoe UI Semibold', 10))
+            title.pack(anchor='w')
+            path = ttk.Label(box, text='', style='Muted.TLabel', wraplength=730)
+            path.pack(anchor='w')
+            self.recent_rows.append((title, path))
+
+    def refresh_history(self):
+        for i, (title, path) in enumerate(self.recent_rows):
+            if i < len(self.history.items):
+                item = self.history.items[i]
+                title.config(text=item['title'])
+                path.config(text=item['path'])
+            else:
+                title.config(text='Aucun document pour le moment' if i == 0 else '')
+                path.config(text='')
+        self.folder_btn.config(state='normal' if self.history.items else 'disabled')
+
+    def remember(self):
+        try:
+            self.history.record(self.session.title, self.session.target)
+            self.refresh_history()
+        except OSError as exc:
+            self.status.set(f'Document enregistré ; historique indisponible : {exc}')
+
+    def open_last_folder(self):
+        if not self.history.items:
+            return
+        folder = Path(self.history.items[0]['path']).parent
+        try:
+            if not folder.is_dir():
+                raise FileNotFoundError('Ce dossier a été déplacé ou supprimé.')
+            os.startfile(str(folder))
+        except OSError as exc:
+            messagebox.showerror('Dossier indisponible', str(exc))
 
     def refresh_monitors(self):
         try:
             self.monitors = get_monitors()
-            names = [f'Écran {i + 1} — {m.width} × {m.height} (position {m.x}, {m.y})'
-                     for i, m in enumerate(self.monitors)]
-            self.combo['values'] = names
-            self.combo.current(0) if len(names) == 1 else self.monitor_choice.set('')
+            self.combo['values'] = [f'Écran {i + 1} · {m.width} × {m.height}' for i, m in enumerate(self.monitors)]
+            self.combo.current(0) if len(self.monitors) == 1 else self.monitor_choice.set('')
         except Exception as exc:
             self.monitors = []
-            messagebox.showerror('Écrans', str(exc))
+            self.status.set(f'Écrans indisponibles : {exc}')
 
     def start(self):
-        if not self.document.get().strip():
-            messagebox.showwarning('Nom requis', 'Saisissez un nom de document.')
+        if self.active or self.initializing:
             return
-        if self.combo.current() < 0:
-            messagebox.showwarning('Écran requis', 'Sélectionnez un écran.')
+        name = self.document.get().strip()
+        if not name or self.combo.current() < 0:
+            messagebox.showwarning('Nouvelle session', 'Saisissez un titre et sélectionnez un écran.')
             return
-        try:
-            temp_root = Path(os.environ['LOCALAPPDATA']) / 'CapturesXHTML' / 'Temp'
-            temp_root.mkdir(parents=True, exist_ok=True)
-            self.session = tempfile.TemporaryDirectory(prefix='session-', dir=temp_root)
-        except Exception as exc:
-            messagebox.showerror('Dossier temporaire', str(exc))
+        safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name).strip('. ') or 'captures'
+        target = filedialog.asksaveasfilename(title='Créer le document XHTML', initialfile=safe + '.xhtml',
+                    defaultextension='.xhtml', filetypes=[('Document XHTML', '*.xhtml')])
+        if not target:
             return
         m = self.monitors[self.combo.current()]
-        self.bounds = (m.x, m.y, m.x + m.width, m.y + m.height)
-        self.captures = []
-        self.pending = 0
-        self.capture_sequence = 0
-        self.active = True
-        self.finishing = False
-        self.hook.enabled.set()
-        self.start_btn.config(state='disabled')
-        self.end_btn.config(state='normal')
-        self.combo.config(state='disabled')
-        self.name_entry.config(state='disabled')
-        self.refresh_btn.config(state='disabled')
-        self.status.set('Session active — 0 capture')
+        bounds = (m.x, m.y, m.x + m.width, m.y + m.height)
+        self.initializing = True
+        self._lock_fields(True)
+        self.status.set('Création du document…')
+        self.destination.set(target)
+        def work():
+            try:
+                session = ProgressiveSession(target, name, bounds, self.data_root / 'Temp')
+                self.events.put(('initialized', session))
+            except Exception as exc:
+                self.events.put(('init_error', str(exc)))
+        self.pool.submit(work)
+
+    def _lock_fields(self, locked):
+        self.start_btn.config(state='disabled' if locked else 'normal')
+        self.name_entry.config(state='disabled' if locked else 'normal')
+        self.combo.config(state='disabled' if locked else 'readonly')
+        self.refresh_btn.config(state='disabled' if locked else 'normal')
+
+    def capture(self):
+        if not self.active or self.finishing:
+            return
+        if self.pending >= 30:
+            self.status.set('Captures en attente · patientez quelques secondes')
+            return
+        self.pending += 1
+        self.status.set(f'Capture et sauvegarde en cours · {self.pending} en attente')
+        def work():
+            try:
+                self.session.capture()
+                self.events.put(('saved', (len(self.session.captures), self.session.saved_count)))
+            except Exception as exc:
+                self.events.put(('capture_error', (str(exc), len(self.session.captures), self.session.saved_count)))
+        self.pool.submit(work)
+
+    def finish(self):
+        if not self.active or self.finishing:
+            return
+        self.finishing = True
+        self.hook.enabled.clear()
+        self.capture_btn.config(state='disabled')
+        self.end_btn.config(state='disabled')
+        self.status.set('Finalisation · attente des captures et dernière sauvegarde…')
+        def work():
+            try:
+                self.session.save()
+                self.events.put(('finished', None))
+            except Exception as exc:
+                self.events.put(('finish_error', str(exc)))
+        self.pool.submit(work)
 
     def process_events(self):
         try:
             while True:
                 kind, payload = self.events.get_nowait()
-                if kind == 'key' and self.active and not self.finishing:
+                if kind == 'key':
                     self.capture()
-                elif kind == 'captured':
-                    self.pending -= 1
-                    self.captures.append(payload)
-                    self.status.set(f'Session active — {len(self.captures)} capture(s), {self.pending} en attente')
-                elif kind == 'error':
-                    self.pending -= 1
-                    self.status.set(f'Erreur de capture : {payload}')
-                    messagebox.showerror('Capture impossible', str(payload))
-                elif kind == 'exported':
-                    self.export_complete(payload)
-                elif kind == 'export_error':
-                    self.finishing = False
+                elif kind == 'initialized':
+                    self.session = payload
+                    self.initializing = False
+                    self.active = True
+                    self.counter.set('0 capture')
+                    self.status.set('Document créé · sauvegarde automatique activée')
+                    self.remember()
+                    self.capture_btn.config(state='normal')
                     self.end_btn.config(state='normal')
-                    self.status.set(f'Échec de l’enregistrement : {payload}')
-                    messagebox.showerror('Document XHTML', str(payload))
+                    if self.hook_ok:
+                        self.hook.enabled.set()
+                elif kind == 'init_error':
+                    self.initializing = False
+                    self._lock_fields(False)
+                    self.status.set('Création impossible · choisissez un autre emplacement')
+                    messagebox.showerror('Document XHTML', payload)
+                elif kind in ('saved', 'capture_error'):
+                    self.pending -= 1
+                    if kind == 'saved':
+                        count, saved = payload
+                        self.status.set(f'{saved} capture(s) sauvegardée(s) · {self.pending} en attente')
+                        self.remember()
+                    else:
+                        error, count, saved = payload
+                        self.status.set(f'Échec de capture ou sauvegarde · {saved}/{count} intégrée(s) au XHTML. Réessayez avec Terminer.')
+                        messagebox.showerror('Sauvegarde à vérifier', error + '\nLes PNG disponibles sont conservés dans :\n' + str(self.session.folder))
+                    self.counter.set(f'{count} capture(s)')
+                elif kind == 'finished':
+                    self.remember()
+                    self.active = self.finishing = False
+                    self._lock_fields(False)
+                    self.status.set(f'Session terminée · {len(self.session.captures)} capture(s) sauvegardée(s)')
+                    try:
+                        self.session.cleanup()
+                    except OSError:
+                        self.status.set('Document sauvegardé · des fichiers temporaires restent à nettoyer')
+                    self.session = None
+                    if self.closing:
+                        self._destroy()
+                        return
+                elif kind == 'finish_error':
+                    close_requested = self.closing
+                    self.finishing = self.closing = False
+                    self.end_btn.config(state='normal')
+                    self.capture_btn.config(state='normal')
+                    if self.hook_ok:
+                        self.hook.enabled.set()
+                    self.status.set('Dernière sauvegarde échouée · cliquez sur Terminer pour réessayer')
+                    messagebox.showerror('Document XHTML', payload + '\nPNG conservés :\n' + str(self.session.folder))
+                    if close_requested and messagebox.askyesno('Fermer malgré l’erreur ?',
+                            'La dernière sauvegarde XHTML reste disponible. Les PNG seront conservés pour récupération manuelle. Fermer ?'):
+                        self._destroy()
+                        return
         except queue.Empty:
             pass
-        if self.finishing and self.pending == 0 and getattr(self, 'export_path', None):
-            self.launch_export()
         self.root.after(40, self.process_events)
 
-    def capture(self):
-        if self.pending >= 30:
-            self.status.set('Trop de captures en attente : attendez quelques secondes.')
-            return
-        self.pending += 1
-        self.capture_sequence += 1
-        filename = Path(self.session.name) / f'capture_{self.capture_sequence:06d}.png'
-        stamp = datetime.now().astimezone().isoformat(timespec='seconds')
-        bounds = self.bounds
-        def work():
-            try:
-                image = ImageGrab.grab(bbox=bounds, all_screens=True)
-                image.save(filename, format='PNG')
-                self.events.put(('captured', (stamp, filename)))
-            except Exception as exc:
-                self.events.put(('error', str(exc)))
-        self.pool.submit(work)
-        self.status.set(f'Capture demandée — {self.pending} en attente')
-
-    def finish(self):
-        if not self.active or self.finishing:
-            return
-        if not self.captures and self.pending == 0 and not messagebox.askyesno('Document vide', 'Aucune capture. Générer un document vide ?'):
-            return
-        name = self.document.get().strip()
-        safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name).strip('. ') or 'captures'
-        path = filedialog.asksaveasfilename(title='Enregistrer le document XHTML',
-                                            initialfile=safe + '.xhtml', defaultextension='.xhtml',
-                                            filetypes=[('Document XHTML', '*.xhtml')])
-        if not path:
-            return
-        self.hook.enabled.clear()
-        self.finishing = True
-        self.end_btn.config(state='disabled')
-        self.export_path = path
-        self.status.set('Finalisation : attente des captures en cours…')
-
-    def launch_export(self):
-        path = self.export_path
-        self.export_path = None
-        name = self.document.get().strip()
-        captures = list(self.captures)
-        self.status.set('Génération et validation du XHTML en cours…')
-        def work():
-            try:
-                export_xhtml(path, name, captures)
-                self.events.put(('exported', path))
-            except Exception as exc:
-                self.events.put(('export_error', str(exc)))
-        self.pool.submit(work)
-
-    def export_complete(self, path):
-        self.active = False
-        self.finishing = False
-        self.start_btn.config(state='normal')
-        self.end_btn.config(state='disabled')
-        self.combo.config(state='readonly')
-        self.name_entry.config(state='normal')
-        self.refresh_btn.config(state='normal')
-        count = len(self.captures)
-        self.status.set(f'Terminé — {count} capture(s) — XHTML vérifié')
-        self.session.cleanup()
-        self.session = None
-        messagebox.showinfo('Document créé', f'{count} capture(s) enregistrée(s).\nStructure XML vérifiée :\n{path}')
-
     def on_close(self):
-        if (self.active or self.finishing) and not messagebox.askyesno(
-                'Quitter', 'Une session est en cours. Quitter sans finaliser le document ?'):
+        if self.initializing:
+            messagebox.showinfo('Création en cours', 'Attendez la création du document avant de fermer.')
             return
+        if self.active:
+            if messagebox.askyesno('Terminer la session', 'Terminer la sauvegarde puis fermer l’application ?'):
+                self.closing = True
+                if not self.finishing:
+                    self.finish()
+            return
+        self._destroy()
+
+    def _destroy(self):
         self.hook.stop()
-        self.pool.shutdown(wait=True, cancel_futures=True)
-        if self.session:
-            self.session.cleanup()
+        self.pool.shutdown(wait=False)
         self.root.destroy()
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3 and sys.argv[1] == '--self-test':
-        report = {}
-        try:
-            root = tk.Tk()
-            root.withdraw()
-            app = CaptureApp(root)
-            report['tk'] = root.tk.call('info', 'patchlevel')
-            report['monitors'] = len(app.monitors)
-            report['hook_installed'] = app.hook_ok
-            app.hook.stop()
-            app.pool.shutdown(wait=True)
-            root.destroy()
-            if not report['monitors'] or not report['hook_installed']:
-                raise RuntimeError('Écrans ou hook indisponibles')
-            report['ok'] = True
-        except Exception as exc:
-            report['ok'] = False
-            report['error'] = str(exc)
-        Path(sys.argv[2]).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
-        sys.exit(0 if report['ok'] else 1)
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
     except (AttributeError, OSError):
+        pass
+    if len(sys.argv) == 3 and sys.argv[1] == '--self-test':
+        report = {}
         try:
-            ctypes.windll.user32.SetProcessDPIAware()
-        except (AttributeError, OSError):
-            pass
+            window = tk.Tk()
+            window.withdraw()
+            app = CaptureApp(window)
+            report = {'monitors': len(app.monitors), 'hook_installed': app.hook_ok,
+                      'recent_slots': len(app.recent_rows), 'tk': window.tk.call('info', 'patchlevel')}
+            report['ok'] = bool(app.monitors) and app.hook_ok
+            app._destroy()
+        except Exception as exc:
+            report.update(ok=False, error=str(exc))
+        Path(sys.argv[2]).write_text(json.dumps(report, indent=2), encoding='utf-8')
+        sys.exit(0 if report['ok'] else 1)
     window = tk.Tk()
     CaptureApp(window)
     window.mainloop()

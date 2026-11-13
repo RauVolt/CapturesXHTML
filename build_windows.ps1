@@ -22,4 +22,4 @@ Check-Exit 'PyInstaller'
 Copy-Item LICENSE dist\CapturesXHTML\LICENSE.txt
 & $ISCC packaging\CapturesXHTML.iss
 Check-Exit 'Inno Setup'
-Get-FileHash installer\CapturesXHTML-1.2.0-Setup.exe -Algorithm SHA256
+Get-FileHash installer\CapturesXHTML-1.3.0-Setup.exe -Algorithm SHA256

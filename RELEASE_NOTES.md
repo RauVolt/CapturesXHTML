@@ -1,15 +1,15 @@
-CapturesXHTML crée un document XHTML autonome à partir de captures d'un écran Windows sélectionné.
+CapturesXHTML 1.3.0 — sauvegarde progressive et nouvelle interface
 
-- Installation par utilisateur dans `%LOCALAPPDATA%\Programs\CapturesXHTML`, sans élévation administrateur et sans Python à installer.
-- Choix explicite du moniteur en configuration multi-écrans.
-- Captures PNG enregistrées progressivement sur disque ; capture et export en arrière-plan.
-- Dates et images intégrées au XHTML ; vérification XML avant remplacement de la destination.
-- Sources sous licence MIT, scripts PyInstaller/Inno Setup et tests inclus.
+- Nom et dossier du XHTML choisis avant le démarrage de la session ; création immédiate d’un document vide valide.
+- Sauvegarde après chaque capture, en arrière-plan, avec validation XML et remplacement atomique.
+- Bouton pour ouvrir le dossier du dernier document.
+- Historique local persistant des cinq derniers titres et chemins.
+- Interface claire : panneaux blancs, accent bleu, Segoe UI et commandes regroupées.
+- Bouton Capturer en complément d’Impr. écran.
+- Setup par utilisateur : si une installation existe, choix de mise à jour/réinstallation, désinstallation ou annulation. Documents et historique conservés.
 
-**Version de pré-diffusion non signée.** SmartScreen peut afficher un avertissement. Aucun soutien ou service de signature SignPath actif.
+**Version non signée, à tester avant diffusion large.** Aucune signature SignPath active.
 
-Fichiers : Setup Windows x64, sources, rapport de compilation et `SHA256SUMS.txt`. Les fichiers joints sont générés ensemble depuis le commit indiqué dans le rapport de compilation.
+Tests automatisés d’export, de sauvegarde progressive, de panne/reprise et d’historique exécutés pendant la compilation. Les essais Windows 10, multi-écrans, mise à jour/désinstallation réelle et raccourci physique restent à réaliser. Consulter VERIFICATION.md ; la CI ne teste pas un bureau interactif.
 
-La compilation automatique exécute les tests d'export et construit le programme et son installateur. Elle ne teste pas la capture d'un bureau interactif, l'installation/désinstallation ni l'interception physique de la touche Impr. écran. Windows 10, les configurations multi-écrans et les parcours manuels restent à vérifier ; voir `VERIFICATION.md` pour les essais locaux antérieurs.
-
-La touche Impr. écran dépend des restrictions Windows ; les contenus protégés peuvent être noirs. La validation XML n'est pas une validation complète DTD/XSD du XHTML.
+Fichiers joints : Setup Windows x64, sources, rapport de compilation et SHA256SUMS.txt. Le rapport indique le commit et l’environnement de compilation. Les essais locaux antérieurs sont identifiés séparément.

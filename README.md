@@ -1,56 +1,49 @@
-# CapturesXHTML 1.2.0 — Windows, installation par utilisateur
+# CapturesXHTML 1.3.0
 
-## Licence open source
+Application Windows 10/11 x64 de capture d’un écran vers un XHTML autonome. Licence [MIT](LICENSE). Mainteneur : [RauVolt](https://github.com/RauVolt).
 
-Le code propre à CapturesXHTML est distribué sous [licence MIT](LICENSE). Elle autorise l'utilisation, la modification et la redistribution, y compris commerciale, en conservant la notice de licence. Les bibliothèques tierces restent régies par leurs licences propres ; la licence MIT du projet ne les remplace pas.
+## Utilisation
 
-La préparation à une signature gratuite est décrite dans [SIGNPATH.md](SIGNPATH.md). Le projet est publié sur https://github.com/RauVolt/CapturesXHTML et maintenu par RauVolt. Aucune candidature SignPath n'a encore été envoyée ; l'installateur existant reste non signé.
+1. Saisir le titre et sélectionner un écran.
+2. Cliquer sur **Choisir le fichier et démarrer**. Choisir le nom et le dossier du XHTML. Si un fichier existe, la boîte Windows demande confirmation de son remplacement.
+3. Un XHTML vide et valide est créé en arrière-plan avant l’activation de la session.
+4. Appuyer sur **Impr. écran** ou sur **Capturer**. Chaque PNG est enregistré localement, puis le XHTML complet est réécrit en arrière-plan, vérifié et remplacé atomiquement. Le compteur indique les captures ; le statut indique leur sauvegarde effective.
+5. **Terminer** attend les captures en cours et effectue une dernière sauvegarde. Fermer une session active propose de sauvegarder avant de quitter.
 
-Cette version reprend le code Python/Tkinter de CapturesXHTML v1.1. Elle ajoute le packaging Windows par utilisateur et conserve la capture de moniteur et l'export XHTML autonome.
+**Ouvrir le dossier** ouvre le répertoire du dernier document enregistré. Les cinq derniers titres et chemins absolus sont affichés et conservés localement dans `%LOCALAPPDATA%/CapturesXHTML/recent.json`. Un chemin déplacé ou supprimé reste dans l’historique et peut ne plus être accessible.
 
-## Disponibilité
+## Sauvegarde et récupération
 
-Ce dépôt contient les sources, les scripts de build et les tests. La [compilation automatique Windows](https://github.com/RauVolt/CapturesXHTML/actions/workflows/windows.yml) produit le Setup, les sources, un rapport et les empreintes SHA256. Les téléchargements sont disponibles dans les artefacts du run réussi (30 jours, connexion GitHub requise).
+Les captures sont écrites dans `%LOCALAPPDATA%/CapturesXHTML/Temp/session-*`. Un manifeste `session.json` associe les PNG au document. Ces fichiers sont supprimés après une finalisation réussie. En cas d’échec, le dernier XHTML valide reste disponible ; **Terminer** permet de réessayer en intégrant tous les PNG disponibles. Après une interruption brutale, les PNG et le manifeste restent disponibles pour récupération manuelle ; aucune reprise automatique n’est implémentée.
 
-Sur `main`, une compilation réussie prépare également une Release **brouillon** v1.2.0, visible par le mainteneur dans [Releases](https://github.com/RauVolt/CapturesXHTML/releases). Le mainteneur peut la relire et la publier après les essais manuels. Une Release déjà publiée n'est jamais remplacée par ce workflow.
+Une capture n’est intégrée au document qu’après confirmation de sauvegarde dans le statut. Un arrêt pendant une capture peut perdre la capture en cours. La mise à jour réécrit tout le XHTML : le fonctionnement vise les sessions d’environ 50 captures ou moins, sans limite dure à 50. Le temps dépend du contenu, du disque et des dossiers réseau/synchronisés.
 
-Les pull requests déclenchent seulement la compilation et les tests, sans droit de publier une Release. Le lancement manuel est disponible dans Actions → Windows build and draft release → Run workflow. Aucun secret SignPath n'est nécessaire pour cette compilation non signée.
+## Installation, mise à jour, désinstallation
 
-## Installer et utiliser
+Un seul Setup, sans Python à installer pour l’utilisateur. Installation sans élévation dans `%LOCALAPPDATA%/Programs/CapturesXHTML`. L’identifiant d’installation est conservé depuis 1.2 pour permettre la mise à jour.
 
-Lancer `CapturesXHTML-1.2.0-Setup.exe` avec le compte utilisateur habituel. Python n'est pas nécessaire sur le poste destinataire. Le programme est installé dans `%LOCALAPPDATA%\Programs\CapturesXHTML`, avec un raccourci dans le menu Démarrer et une entrée de désinstallation Windows. Aucun service, pilote, démarrage automatique ni changement des réglages Windows de la touche Impr. écran n'est ajouté.
+Si l’application est déjà installée pour ce compte, relancer le Setup propose **Mettre à jour ou réinstaller**, **Désinstaller CapturesXHTML** ou **Annuler**. Le choix de désinstallation lance le désinstalleur existant et arrête le Setup. En mode silencieux, le Setup met à jour sans afficher ce choix. La désinstallation reste également disponible dans les paramètres Windows. Documents, historique et données temporaires résiduelles sont conservés.
 
-Saisir le nom du document, sélectionner un écran, puis cliquer sur Démarrer. À chaque pression sur Impr. écran, l'écran choisi est capturé. Cliquer sur Terminer et choisir la destination XHTML. Les captures et l'export s'exécutent dans un worker ; la finalisation attend les captures en cours.
+## Interface
 
-Chaque PNG est écrit dans `%LOCALAPPDATA%\CapturesXHTML\Temp\session-*` avant son intégration au document. Les PNG sont supprimés après un export réussi ou une fermeture confirmée. En cas d'échec d'export, on peut réessayer pendant la session. Il n'y a pas de reprise automatique après fermeture forcée ; des dossiers temporaires résiduels peuvent rester. La désinstallation ne supprime pas les documents exportés ni ces résidus.
+Fond gris clair, cartes blanches, accent bleu, typographie Segoe UI, commandes principales regroupées et historique visible. Interface Tkinter/ttk personnalisée, sans dépendance graphique supplémentaire.
 
-## Changements depuis 1.1
+## Compilation
 
-- Installation Inno Setup en mode non administratif (`PrivilegesRequired=lowest`), sans option d'élévation ; application sans manifeste exigeant les droits administrateur.
-- Distribution sous forme d'un seul installateur. PyInstaller utilise `onedir` à l'intérieur : Inno Setup regroupe tous les fichiers dans le fichier Setup unique.
-- Stockage temporaire déplacé dans le profil local, sous CapturesXHTML.
-- Choix explicite requis quand plusieurs écrans sont détectés.
-- Numérotation des PNG indépendante des réussites/échecs, pour éviter la réutilisation d'un nom après une capture échouée.
-- Contrôle de démarrage `CapturesXHTML.exe --self-test CHEMIN_ABSOLU_JSON`, qui vérifie Tk, détection d'écran et installation du hook sans activer l'interception.
-
-Le XHTML autonome, les dates, les images PNG Base64, la validation XML en flux et le remplacement atomique de la destination sont conservés. La validation XML ne constitue pas une validation DTD/XSD complète du XHTML.
-
-## Recompiler
-
-Sur Windows x64, installer Python avec Tkinter et Inno Setup 6 depuis leurs sites officiels. Compilation réalisée ici avec Python 3.15.0 x64, Pillow 12.3.0, screeninfo 0.8.1, PyInstaller 6.22.3 et hooks 2026.8. Les trois dépendances principales sont fixées dans `requirements.txt` ; l'environnement complet utilisé figure dans le dossier de vérification.
-
-Depuis le dossier des sources, dans PowerShell :
+Sur Windows x64 avec Python/Tkinter et Inno Setup 6 :
 
 ```powershell
-.\build_windows.ps1 -Python 'C:\chemin\python.exe' -ISCC 'C:\chemin\Inno Setup 6\ISCC.exe'
+./build_windows.ps1 -Python 'C:/chemin/python.exe' -ISCC 'C:/chemin/Inno Setup 6/ISCC.exe'
 ```
 
-Ou lancer `build_windows.bat` si Python et Inno Setup sont aux emplacements attendus. Le script crée `.venv`, installe les dépendances, lance les tests, construit l'application puis l'installateur. Il s'arrête si une étape échoue. Internet est nécessaire pour installer les dépendances. Résultat : `installer\CapturesXHTML-1.2.0-Setup.exe`. Les outils de développement ne sont pas inclus dans les sources.
+Le script crée un environnement isolé, installe les dépendances fixées, exécute les tests et produit `installer/CapturesXHTML-1.3.0-Setup.exe`.
 
-## Vérifications et limites
+[GitHub Actions](https://github.com/RauVolt/CapturesXHTML/actions/workflows/windows.yml) compile sur Windows avec Python 3.13, publie des artefacts et prépare une Release **brouillon** v1.3.0 sur `main`. Le lot contient Setup, sources, rapport et SHA256. Les pull requests ne peuvent pas publier de Release. Une Release déjà publiée n’est pas remplacée.
 
-Consulter `VERIFICATION.md` pour distinguer les tests réellement passés des essais restant à faire. L'installateur n'est pas signé : Windows peut afficher un avertissement SmartScreen. Une politique d'entreprise peut interdire l'exécution même sans demande d'administration.
+## Confidentialité et limites
 
-Impr. écran est intercepté uniquement pendant une session et seulement lorsque Windows transmet l'événement au hook. Les écrans UAC, contenus protégés, applications élevées ou d'autres hooks peuvent empêcher cette interception. Aucun contournement de ces protections n'est réalisé. Les captures en attente saisissent l'écran au moment où le worker les traite, pas nécessairement à l'instant exact de l'appui.
+Aucune télémétrie et aucun envoi réseau par l’application. Les documents contiennent les images capturées et leurs dates ; leur partage relève de l’utilisateur. Un dossier réseau ou synchronisé choisi peut naturellement être traité par le service correspondant.
 
-Sources techniques : [Inno Setup — droits requis](https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm), [PyInstaller — utilisation](https://pyinstaller.org/en/stable/usage.html), [Python Windows](https://www.python.org/downloads/windows/), [Inno Setup](https://jrsoftware.org/isdl.php).
+Le hook Impr. écran dépend des restrictions Windows et n’intercepte pas tous les contextes protégés. Le bouton Capturer reste disponible si le hook ne s’installe pas. Les captures en attente saisissent l’écran au moment de leur traitement. La validation confirme un XML bien formé, pas une conformité complète DTD/XSD ni un affichage universel. Voir [VERIFICATION.md](VERIFICATION.md).
+
+Les bibliothèques tierces conservent leurs licences. L’application et le Setup restent **non signés** ; aucun service SignPath actif. Voir [SIGNPATH.md](SIGNPATH.md).
