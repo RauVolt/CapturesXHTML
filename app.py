@@ -19,6 +19,7 @@ import tkinter as tk
 
 from PIL import ImageGrab
 from screeninfo import get_monitors
+from shortcuts import KEYS, MODIFIERS, DEFAULT_SHORTCUT, ShortcutMatcher, label, validate
 
 VK_SNAPSHOT = 0x2C
 WH_KEYBOARD_LL = 13
@@ -29,8 +30,9 @@ WM_QUIT = 0x12
 
 class PrintScreenHook:
     """Hook clavier bas niveau Windows; avale Impr écran pendant une session."""
-    def __init__(self, on_press):
+    def __init__(self, on_press, shortcut=DEFAULT_SHORTCUT):
         self.on_press = on_press
+        self.matcher = ShortcutMatcher(shortcut)
         self.enabled = threading.Event()
         self.ready = threading.Event()
         self.error = None
@@ -68,23 +70,22 @@ class PrintScreenHook:
         user32.PostThreadMessageW.restype = wintypes.BOOL
         kernel32.GetCurrentThreadId.restype = wintypes.DWORD
         self.thread_id = kernel32.GetCurrentThreadId()
-        pressed = False
+        user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
+        user32.GetAsyncKeyState.restype = ctypes.c_short
 
         def callback(ncode, wparam, lparam):
-            nonlocal pressed
-            if ncode >= 0 and self.enabled.is_set():
+            if ncode >= 0 and wparam in (WM_KEYDOWN, WM_SYSKEYDOWN, WM_KEYUP, WM_SYSKEYUP):
                 data = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-                if data.vkCode == VK_SNAPSHOT:
-                    if wparam in (WM_KEYDOWN, WM_SYSKEYDOWN):
-                        if not pressed:
-                            pressed = True
-                            self.on_press()
-                    elif wparam in (WM_KEYUP, WM_SYSKEYUP):
-                        # Certains claviers n'envoient que le relâchement de cette touche.
-                        if not pressed:
-                            self.on_press()
-                        pressed = False
-                    return 1  # Empêche le traitement normal lorsque le hook est appelé.
+                modifiers = {vk for vk in (0x10, 0x11, 0x12) if user32.GetAsyncKeyState(vk) & 0x8000}
+                # Windows-key chords are never captured.
+                if any(user32.GetAsyncKeyState(vk) & 0x8000 for vk in (0x5B, 0x5C)):
+                    modifiers.add(0x5B)
+                trigger, suppress = self.matcher.feed(data.vkCode,
+                    wparam in (WM_KEYDOWN, WM_SYSKEYDOWN), self.enabled.is_set(), modifiers)
+                if trigger:
+                    self.on_press()
+                if suppress:
+                    return 1
             return user32.CallNextHookEx(None, ncode, wparam, lparam)
 
         self._callback = CALLBACK(callback)
@@ -199,11 +200,11 @@ class ProgressiveSession:
             self.cleanup()
             raise
 
-    def capture(self):
+    def capture(self, bounds=None):
         self.sequence += 1
         stamp = datetime.now().astimezone().isoformat(timespec='seconds')
         filename = self.folder / f'capture_{self.sequence:06d}.png'
-        image = ImageGrab.grab(bbox=self.bounds, all_screens=True)
+        image = ImageGrab.grab(bbox=self.bounds if bounds is None else bounds, all_screens=True)
         try:
             image.save(filename, format='PNG')
         finally:
@@ -225,12 +226,43 @@ class ProgressiveSession:
         self.folder.rmdir()
 
 
+class ScrollFrame(ttk.Frame):
+    """Vertical scroll region; mouse wheel targets the innermost region."""
+    def __init__(self, parent, background, height=600):
+        super().__init__(parent)
+        self.canvas = tk.Canvas(self, bg=background, highlightthickness=0, height=height)
+        self.scrollbar = ttk.Scrollbar(self, orient='vertical', command=self.canvas.yview)
+        self.scrollbar.pack(side='right', fill='y')
+        self.canvas.pack(side='left', fill='both', expand=True)
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.body = ttk.Frame(self.canvas, style='Card.TFrame' if background == 'white' else 'TFrame')
+        self.item = self.canvas.create_window((0, 0), window=self.body, anchor='nw')
+        self.body.bind('<Configure>', lambda e: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
+        self.canvas.bind('<Configure>', lambda e: self.canvas.itemconfigure(self.item, width=e.width))
+        root = self.winfo_toplevel()
+        if not getattr(root, '_scroll_handler_installed', False):
+            root._scroll_handler_installed = True
+            root.bind_all('<MouseWheel>', self.wheel, add='+')
+
+    @staticmethod
+    def wheel(event):
+        widget = event.widget
+        while widget is not None:
+            if isinstance(widget, ScrollFrame):
+                widget.canvas.yview_scroll(-1 if event.delta > 0 else 1, 'units')
+                return 'break'
+            widget = getattr(widget, 'master', None)
+
+
 class CaptureApp:
     def __init__(self, root):
         self.root = root
-        root.title('CapturesXHTML · 1.3')
-        root.geometry('880x790')
-        root.minsize(760, 730)
+        root.title('CapturesXHTML · 1.4')
+        root.geometry('960x850')
+        root.minsize(680, 460)
+        icon = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent)) / 'assets' / 'capture.ico'
+        if icon.exists():
+            root.iconbitmap(str(icon))
         root.configure(bg='#f4f6fa')
         self.events = queue.Queue()
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='CaptureWorker')
@@ -240,6 +272,15 @@ class CaptureApp:
         self.monitors = []
         self.data_root = Path(os.environ['LOCALAPPDATA']) / 'CapturesXHTML'
         self.history = History(self.data_root / 'recent.json')
+        self.shortcut = DEFAULT_SHORTCUT
+        try:
+            config = json.loads((self.data_root / 'settings.json').read_text(encoding='utf-8'))
+            self.shortcut = validate(config['modifier'], config['key'])
+        except (OSError, ValueError, TypeError, KeyError):
+            pass
+        self.shortcut_modifier = tk.StringVar(value=self.shortcut[0])
+        self.shortcut_key = tk.StringVar(value=self.shortcut[1])
+        self.shortcut_hint = tk.StringVar(value='Pour capturer : ' + label(self.shortcut))
         self.document = tk.StringVar()
         self.monitor_choice = tk.StringVar()
         self.status = tk.StringVar(value='Prêt pour une nouvelle session')
@@ -248,10 +289,11 @@ class CaptureApp:
         self._design()
         self.refresh_history()
         self.refresh_monitors()
-        self.hook = PrintScreenHook(lambda: self.events.put(('key', None)))
+        self.hook = PrintScreenHook(lambda: self.events.put(('key', None)), self.shortcut)
         self.hook_ok = self.hook.start()
         if not self.hook_ok:
-            self.status.set('Impr. écran indisponible · utilisez le bouton Capturer')
+            self.status.set('Raccourci indisponible · redémarrez l’application pour réessayer')
+            self.start_btn.config(state='disabled')
         root.after(40, self.process_events)
         root.protocol('WM_DELETE_WINDOW', self.on_close)
 
@@ -273,7 +315,10 @@ class CaptureApp:
         style.map('TButton', background=[('active', '#dbe4ef')], foreground=[('disabled', '#94a3b8')])
         style.configure('Primary.TButton', background='#2563eb', foreground='white')
         style.map('Primary.TButton', background=[('disabled', '#cbd5e1'), ('active', '#1d4ed8')])
-        shell = ttk.Frame(self.root, padding=(30, 24))
+        outer = ScrollFrame(self.root, background='#f4f6fa')
+        outer.pack(fill='both', expand=True)
+        self.page_scroll = outer
+        shell = ttk.Frame(outer.body, padding=(26, 24))
         shell.pack(fill='both', expand=True)
         ttk.Label(shell, text='CapturesXHTML', style='Title.TLabel').pack(anchor='w')
         ttk.Label(shell, text='Vos captures. Un seul document. Enregistré au fil de la session.',
@@ -291,6 +336,7 @@ class CaptureApp:
         self.name_entry.grid(row=1, column=0, sticky='ew', pady=(5, 0))
         self.combo = ttk.Combobox(fields, textvariable=self.monitor_choice, state='readonly')
         self.combo.grid(row=1, column=1, sticky='ew', padx=(16, 0), pady=(5, 0))
+        self.combo.bind('<<ComboboxSelected>>', self.monitor_changed)
         buttons = ttk.Frame(card, style='Card.TFrame')
         buttons.pack(fill='x')
         self.start_btn = ttk.Button(buttons, text='Choisir le fichier et démarrer', command=self.start, style='Primary.TButton')
@@ -304,36 +350,62 @@ class CaptureApp:
         ttk.Label(live, textvariable=self.destination, style='Muted.TLabel', wraplength=740).pack(anchor='w', pady=(0, 12))
         row = ttk.Frame(live, style='Card.TFrame')
         row.pack(fill='x')
-        self.capture_btn = ttk.Button(row, text='Capturer · Impr. écran', command=self.capture, state='disabled', style='Primary.TButton')
-        self.capture_btn.pack(side='left')
+        ttk.Label(row, textvariable=self.shortcut_hint, style='Heading.TLabel').pack(side='left')
         self.end_btn = ttk.Button(row, text='Terminer', command=self.finish, state='disabled')
-        self.end_btn.pack(side='left', padx=10)
-        self.folder_btn = ttk.Button(row, text='Ouvrir le dossier', command=self.open_last_folder)
-        self.folder_btn.pack(side='right')
+        self.end_btn.pack(side='right')
+        config = ttk.Frame(live, style='Card.TFrame')
+        config.pack(fill='x', pady=(16, 0))
+        ttk.Label(config, text='Raccourci', style='Muted.TLabel').pack(side='left', padx=(0, 12))
+        self.modifier_combo = ttk.Combobox(config, textvariable=self.shortcut_modifier,
+                    values=list(MODIFIERS), state='readonly', width=8)
+        self.modifier_combo.pack(side='left')
+        ttk.Label(config, text=' + ').pack(side='left')
+        self.key_combo = ttk.Combobox(config, textvariable=self.shortcut_key,
+                    values=list(KEYS), state='readonly', width=15)
+        self.key_combo.pack(side='left')
+        self.modifier_combo.bind('<<ComboboxSelected>>', self.configure_shortcut)
+        self.key_combo.bind('<<ComboboxSelected>>', self.configure_shortcut)
+        ttk.Button(config, text='Retour config. initiale', command=self.reset_shortcut).pack(side='right')
+        ttk.Label(live, text='Une touche seule ou Ctrl / Alt / Maj + une touche. Le raccourci est réservé pendant la session.',
+                  style='Muted.TLabel', wraplength=720).pack(anchor='w', pady=(8, 0))
         recent = ttk.Frame(shell, padding=(22, 18), style='Card.TFrame')
-        recent.pack(fill='both', expand=True)
+        recent.pack(fill='x')
         ttk.Label(recent, text='Documents récents', style='Heading.TLabel').pack(anchor='w')
         ttk.Label(recent, text='Les 5 derniers fichiers enregistrés sur cet ordinateur', style='Muted.TLabel').pack(anchor='w', pady=(2, 8))
+        self.history_scroll = ScrollFrame(recent, background='white', height=190)
+        self.history_scroll.pack(fill='x')
         self.recent_rows = []
-        for _ in range(5):
-            box = ttk.Frame(recent, style='Card.TFrame')
+        for i in range(5):
+            box = ttk.Frame(self.history_scroll.body, style='Card.TFrame')
             box.pack(fill='x', pady=4)
-            title = ttk.Label(box, text='', font=('Segoe UI Semibold', 10))
+            opener = ttk.Button(box, text='Ouvrir', command=lambda index=i: self.open_history_folder(index))
+            opener.pack(side='right', padx=(12, 0))
+            text_box = ttk.Frame(box, style='Card.TFrame')
+            text_box.pack(side='left', fill='both', expand=True)
+            title = ttk.Label(text_box, text='', font=('Segoe UI Semibold', 10), wraplength=570)
             title.pack(anchor='w')
-            path = ttk.Label(box, text='', style='Muted.TLabel', wraplength=730)
+            path = ttk.Label(text_box, text='', style='Muted.TLabel', wraplength=570)
             path.pack(anchor='w')
-            self.recent_rows.append((title, path))
+            self.recent_rows.append((title, path, opener))
+            text_box.bind('<Configure>', lambda e, t=title, p=path: (t.configure(wraplength=max(120, e.width)), p.configure(wraplength=max(120, e.width))))
 
     def refresh_history(self):
-        for i, (title, path) in enumerate(self.recent_rows):
+        for i, (title, path, opener) in enumerate(self.recent_rows):
+            box = title.master.master
             if i < len(self.history.items):
+                box.pack(fill='x', pady=4)
                 item = self.history.items[i]
                 title.config(text=item['title'])
                 path.config(text=item['path'])
+                opener.config(state='normal')
+                opener.pack(side='right', padx=(12, 0))
             else:
                 title.config(text='Aucun document pour le moment' if i == 0 else '')
                 path.config(text='')
-        self.folder_btn.config(state='normal' if self.history.items else 'disabled')
+                opener.config(state='disabled')
+                opener.pack_forget()
+                if i > 0:
+                    box.pack_forget()
 
     def remember(self):
         try:
@@ -342,16 +414,38 @@ class CaptureApp:
         except OSError as exc:
             self.status.set(f'Document enregistré ; historique indisponible : {exc}')
 
-    def open_last_folder(self):
-        if not self.history.items:
+    def open_history_folder(self, index):
+        if not 0 <= index < len(self.history.items):
             return
-        folder = Path(self.history.items[0]['path']).parent
+        folder = Path(self.history.items[index]['path']).parent
         try:
             if not folder.is_dir():
                 raise FileNotFoundError('Ce dossier a été déplacé ou supprimé.')
             os.startfile(str(folder))
         except OSError as exc:
             messagebox.showerror('Dossier indisponible', str(exc))
+
+    def configure_shortcut(self, event=None):
+        shortcut = validate(self.shortcut_modifier.get(), self.shortcut_key.get())
+        try:
+            atomic_json(self.data_root / 'settings.json', {'modifier': shortcut[0], 'key': shortcut[1]})
+        except OSError as exc:
+            self.shortcut_modifier.set(self.shortcut[0])
+            self.shortcut_key.set(self.shortcut[1])
+            messagebox.showerror('Raccourci', 'Configuration non enregistrée : ' + str(exc))
+            return
+        self.shortcut = shortcut
+        self.hook.matcher.shortcut = shortcut
+        self.shortcut_hint.set('Pour capturer : ' + label(shortcut))
+
+    def reset_shortcut(self):
+        self.shortcut_modifier.set(DEFAULT_SHORTCUT[0])
+        self.shortcut_key.set(DEFAULT_SHORTCUT[1])
+        self.configure_shortcut()
+
+    def monitor_changed(self, event=None):
+        if self.active and not self.finishing:
+            self.status.set('Écran changé · les prochaines captures utiliseront la sélection actuelle')
 
     def refresh_monitors(self):
         try:
@@ -391,7 +485,7 @@ class CaptureApp:
     def _lock_fields(self, locked):
         self.start_btn.config(state='disabled' if locked else 'normal')
         self.name_entry.config(state='disabled' if locked else 'normal')
-        self.combo.config(state='disabled' if locked else 'readonly')
+        self.combo.config(state='readonly')
         self.refresh_btn.config(state='disabled' if locked else 'normal')
 
     def capture(self):
@@ -400,11 +494,17 @@ class CaptureApp:
         if self.pending >= 30:
             self.status.set('Captures en attente · patientez quelques secondes')
             return
+        selected = self.combo.current()
+        if not 0 <= selected < len(self.monitors):
+            self.status.set('Sélectionnez un écran avant la prochaine capture')
+            return
+        monitor = self.monitors[selected]
+        bounds = (monitor.x, monitor.y, monitor.x + monitor.width, monitor.y + monitor.height)
         self.pending += 1
         self.status.set(f'Capture et sauvegarde en cours · {self.pending} en attente')
         def work():
             try:
-                self.session.capture()
+                self.session.capture(bounds)
                 self.events.put(('saved', (len(self.session.captures), self.session.saved_count)))
             except Exception as exc:
                 self.events.put(('capture_error', (str(exc), len(self.session.captures), self.session.saved_count)))
@@ -415,7 +515,6 @@ class CaptureApp:
             return
         self.finishing = True
         self.hook.enabled.clear()
-        self.capture_btn.config(state='disabled')
         self.end_btn.config(state='disabled')
         self.status.set('Finalisation · attente des captures et dernière sauvegarde…')
         def work():
@@ -439,7 +538,6 @@ class CaptureApp:
                     self.counter.set('0 capture')
                     self.status.set('Document créé · sauvegarde automatique activée')
                     self.remember()
-                    self.capture_btn.config(state='normal')
                     self.end_btn.config(state='normal')
                     if self.hook_ok:
                         self.hook.enabled.set()
@@ -476,7 +574,6 @@ class CaptureApp:
                     close_requested = self.closing
                     self.finishing = self.closing = False
                     self.end_btn.config(state='normal')
-                    self.capture_btn.config(state='normal')
                     if self.hook_ok:
                         self.hook.enabled.set()
                     self.status.set('Dernière sauvegarde échouée · cliquez sur Terminer pour réessayer')
@@ -509,6 +606,11 @@ class CaptureApp:
 
 if __name__ == '__main__':
     try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID.argtypes = [ctypes.c_wchar_p]
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('RauVolt.CapturesXHTML')
+    except (AttributeError, OSError):
+        pass
+    try:
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
     except (AttributeError, OSError):
         pass
@@ -519,7 +621,8 @@ if __name__ == '__main__':
             window.withdraw()
             app = CaptureApp(window)
             report = {'monitors': len(app.monitors), 'hook_installed': app.hook_ok,
-                      'recent_slots': len(app.recent_rows), 'tk': window.tk.call('info', 'patchlevel')}
+                      'recent_slots': len(app.recent_rows), 'shortcut': label(app.shortcut),
+                      'scrollbars': 2, 'tk': window.tk.call('info', 'patchlevel')}
             report['ok'] = bool(app.monitors) and app.hook_ok
             app._destroy()
         except Exception as exc:

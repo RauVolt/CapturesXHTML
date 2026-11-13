@@ -1,4 +1,4 @@
-# CapturesXHTML 1.3.0
+# CapturesXHTML 1.4.0
 
 Application Windows 10/11 x64 de capture d’un écran vers un XHTML autonome. Licence [MIT](LICENSE). Mainteneur : [RauVolt](https://github.com/RauVolt).
 
@@ -7,10 +7,10 @@ Application Windows 10/11 x64 de capture d’un écran vers un XHTML autonome. L
 1. Saisir le titre et sélectionner un écran.
 2. Cliquer sur **Choisir le fichier et démarrer**. Choisir le nom et le dossier du XHTML. Si un fichier existe, la boîte Windows demande confirmation de son remplacement.
 3. Un XHTML vide et valide est créé en arrière-plan avant l’activation de la session.
-4. Appuyer sur **Impr. écran** ou sur **Capturer**. Chaque PNG est enregistré localement, puis le XHTML complet est réécrit en arrière-plan, vérifié et remplacé atomiquement. Le compteur indique les captures ; le statut indique leur sauvegarde effective.
+4. Utiliser le raccourci affiché (**Impr. écran** par défaut). Chaque PNG est enregistré localement, puis le XHTML complet est réécrit en arrière-plan, vérifié et remplacé atomiquement. Le compteur indique les captures ; le statut indique leur sauvegarde effective.
 5. **Terminer** attend les captures en cours et effectue une dernière sauvegarde. Fermer une session active propose de sauvegarder avant de quitter.
 
-**Ouvrir le dossier** ouvre le répertoire du dernier document enregistré. Les cinq derniers titres et chemins absolus sont affichés et conservés localement dans `%LOCALAPPDATA%/CapturesXHTML/recent.json`. Un chemin déplacé ou supprimé reste dans l’historique et peut ne plus être accessible.
+Chaque ligne des documents récents dispose de son bouton **Ouvrir**, qui ouvre le répertoire du document correspondant. Aucun bouton global d’ouverture de dossier. Les cinq derniers titres et chemins absolus sont affichés et conservés localement dans `%LOCALAPPDATA%/CapturesXHTML/recent.json`. Un chemin déplacé ou supprimé reste dans l’historique et peut ne plus être accessible.
 
 ## Sauvegarde et récupération
 
@@ -26,7 +26,19 @@ Si l’application est déjà installée pour ce compte, relancer le Setup propo
 
 ## Interface
 
-Fond gris clair, cartes blanches, accent bleu, typographie Segoe UI, commandes principales regroupées et historique visible. Interface Tkinter/ttk personnalisée, sans dépendance graphique supplémentaire.
+Fond gris clair, cartes blanches, accent bleu, typographie Segoe UI, commandes principales regroupées et historique visible. Interface Tkinter/ttk personnalisée, sans dépendance graphique supplémentaire. Une barre de défilement verticale dessert toute la fenêtre ; une seconde dessert indépendamment les documents récents. La molette agit sur la zone survolée. Les chemins et titres longs reviennent à la ligne.
+
+## Raccourci et écran
+
+Le panneau Raccourci permet de choisir une touche seule ou **Ctrl / Alt / Maj + une touche**. Les touches proposées sont Impr. écran, F1 à F24, Pause, Arrêt défil., A à Z et 0 à 9. Le rappel indique toujours la combinaison active. **Retour config. initiale** rétablit Impr. écran uniquement ; il ne réinitialise pas les documents ou l’historique. Le choix est enregistré dans `%LOCALAPPDATA%/CapturesXHTML/settings.json` et s’applique immédiatement, y compris pendant une session.
+
+Pendant la session, le raccourci choisi est réservé à la capture et n’exécute plus sa fonction habituelle dans l’application active. Il est libéré hors session. Les combinaisons de trois touches ou avec la touche Windows ne sont pas proposées. Les raccourcis réservés par Windows peuvent rester indisponibles. Un appui prolongé ne déclenche qu’une capture. Si le hook clavier ne s’installe pas, le démarrage de session est désactivé et un message demande de redémarrer.
+
+La liste d’écrans reste modifiable pendant la session. La sélection est figée pour chaque capture lors de sa mise en attente ; changer ensuite d’écran ne modifie pas les demandes précédentes. Les écrans branchés ou retirés en cours de session nécessitent une nouvelle session et une actualisation.
+
+## Icône
+
+Icône originale géométrique sur le thème du cadrage : carré bleu, quatre angles blancs et centre cyan. Sources SVG et script de génération inclus, avec PNG et ICO multi-résolutions. L’icône est utilisée dans la fenêtre, l’exécutable, le raccourci Windows et le Setup.
 
 ## Compilation
 
@@ -36,14 +48,14 @@ Sur Windows x64 avec Python/Tkinter et Inno Setup 6 :
 ./build_windows.ps1 -Python 'C:/chemin/python.exe' -ISCC 'C:/chemin/Inno Setup 6/ISCC.exe'
 ```
 
-Le script crée un environnement isolé, installe les dépendances fixées, exécute les tests et produit `installer/CapturesXHTML-1.3.0-Setup.exe`.
+Le script crée un environnement isolé, installe les dépendances fixées, exécute les tests et produit `installer/CapturesXHTML-1.4.0-Setup.exe`.
 
-[GitHub Actions](https://github.com/RauVolt/CapturesXHTML/actions/workflows/windows.yml) compile sur Windows avec Python 3.13, publie des artefacts et prépare une Release **brouillon** v1.3.0 sur `main`. Le lot contient Setup, sources, rapport et SHA256. Les pull requests ne peuvent pas publier de Release. Une Release déjà publiée n’est pas remplacée.
+[GitHub Actions](https://github.com/RauVolt/CapturesXHTML/actions/workflows/windows.yml) compile sur Windows avec Python 3.13, publie des artefacts et prépare une Release **brouillon** v1.4.0 sur `main`. Le lot contient Setup, sources, rapport et SHA256. Les pull requests ne peuvent pas publier de Release. Une Release déjà publiée n’est pas remplacée.
 
 ## Confidentialité et limites
 
 Aucune télémétrie et aucun envoi réseau par l’application. Les documents contiennent les images capturées et leurs dates ; leur partage relève de l’utilisateur. Un dossier réseau ou synchronisé choisi peut naturellement être traité par le service correspondant.
 
-Le hook Impr. écran dépend des restrictions Windows et n’intercepte pas tous les contextes protégés. Le bouton Capturer reste disponible si le hook ne s’installe pas. Les captures en attente saisissent l’écran au moment de leur traitement. La validation confirme un XML bien formé, pas une conformité complète DTD/XSD ni un affichage universel. Voir [VERIFICATION.md](VERIFICATION.md).
+Le hook Impr. écran dépend des restrictions Windows et n’intercepte pas tous les contextes protégés. Le démarrage de session est bloqué si le hook ne s’installe pas. Les captures en attente saisissent l’écran au moment de leur traitement. La validation confirme un XML bien formé, pas une conformité complète DTD/XSD ni un affichage universel. Voir [VERIFICATION.md](VERIFICATION.md).
 
 Les bibliothèques tierces conservent leurs licences. L’application et le Setup restent **non signés** ; aucun service SignPath actif. Voir [SIGNPATH.md](SIGNPATH.md).

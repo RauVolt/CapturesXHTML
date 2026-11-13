@@ -1,15 +1,15 @@
-CapturesXHTML 1.3.0 — sauvegarde progressive et nouvelle interface
+CapturesXHTML 1.4.0 — raccourcis, navigation et nouvelle icône
 
-- Nom et dossier du XHTML choisis avant le démarrage de la session ; création immédiate d’un document vide valide.
-- Sauvegarde après chaque capture, en arrière-plan, avec validation XML et remplacement atomique.
-- Bouton pour ouvrir le dossier du dernier document.
-- Historique local persistant des cinq derniers titres et chemins.
-- Interface claire : panneaux blancs, accent bleu, Segoe UI et commandes regroupées.
-- Bouton Capturer en complément d’Impr. écran.
-- Setup par utilisateur : si une installation existe, choix de mise à jour/réinstallation, désinstallation ou annulation. Documents et historique conservés.
+- Suppression du bouton Capturer ; rappel du raccourci actif.
+- Touche unique ou combinaison Ctrl / Alt / Maj + une touche, persistante après redémarrage. Retour config. initiale rétablit Impr. écran.
+- Un bouton Ouvrir par document récent, vers le dossier correspondant ; suppression du bouton global.
+- Défilement vertical de la fenêtre et défilement indépendant des documents récents, avec prise en charge de la molette.
+- Changement d’écran possible pendant la session. Les captures en attente conservent leur sélection d’origine.
+- Icône de capture épurée intégrée à l’application, l’exécutable et l’installateur.
+- Sauvegarde progressive du XHTML, historique de cinq documents et maintenance de l’installation conservés.
 
-**Version non signée, à tester avant diffusion large.** Aucune signature SignPath active.
+**Version non signée.** Le raccourci choisi est réservé pendant la session ; les restrictions Windows peuvent empêcher son interception. Aucun service SignPath actif.
 
-Tests automatisés d’export, de sauvegarde progressive, de panne/reprise et d’historique exécutés pendant la compilation. Les essais Windows 10, multi-écrans, mise à jour/désinstallation réelle et raccourci physique restent à réaliser. Consulter VERIFICATION.md ; la CI ne teste pas un bureau interactif.
+Tests d’export, sauvegarde progressive, historique, raccourcis, boutons de dossiers et changement d’écran simulé. La compilation automatique ne teste ni le raccourci physique ni une véritable configuration multi-écrans. Windows 10 et les essais d’installation/désinstallation réels restent à vérifier ; voir VERIFICATION.md.
 
-Fichiers joints : Setup Windows x64, sources, rapport de compilation et SHA256SUMS.txt. Le rapport indique le commit et l’environnement de compilation. Les essais locaux antérieurs sont identifiés séparément.
+Fichiers : Setup Windows x64, sources, rapport de compilation et SHA256SUMS.txt. Sources sous licence MIT.

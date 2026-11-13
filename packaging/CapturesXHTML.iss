@@ -4,7 +4,7 @@
 [Setup]
 AppId={{4C05EE44-EE4F-40C3-8686-294F94E78257}
 AppName=CapturesXHTML
-AppVersion=1.3.0
+AppVersion=1.4.0
 DefaultDirName={localappdata}\Programs\CapturesXHTML
 DefaultGroupName=CapturesXHTML
 PrivilegesRequired=lowest
@@ -13,10 +13,11 @@ DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 MinVersion=10.0
 OutputDir=..\installer
-OutputBaseFilename=CapturesXHTML-1.3.0-Setup
+OutputBaseFilename=CapturesXHTML-1.4.0-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\assets\capture.ico
 UninstallDisplayIcon={app}\CapturesXHTML.exe
 CloseApplications=yes
 [Languages]

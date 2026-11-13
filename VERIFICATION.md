@@ -1,16 +1,13 @@
-# Vérification locale — 1.3.0 — 13 novembre 2026
+# Vérification locale — CapturesXHTML 1.4.0 — 13 novembre 2026
 
-- 8 tests automatisés réussis : export Unicode/PNG, préservation de destination après erreur, XML mal formé, création vide puis sauvegarde après chaque capture, conservation des PNG et reprise après échec d’export, échec d’initialisation sans remplacement, historique limité à cinq chemins uniques et persistant, historique corrompu ignoré.
-- Essai intégré avec interface cachée et images synthétiques : création du fichier avant capture, trois captures en attente puis Terminer, vérification des trois images intégrées, historique relu depuis disque, appel d’ouverture du bon dossier vérifié par simulation.
-- Interface source ouverte sous Windows 11 et inspectée visuellement : titres, cartes, champs, commandes et zone des récents visibles.
-- Lot de 50 captures : première image 1920×1080 du fichier d’exemple fourni répétée 50 fois, fichier de 15 769 436 octets, environ 0,53 s pour la dernière capture/sauvegarde et 15,92 s cumulées sur le disque local de test. Mesure indicative, sans garantie sur d’autres images ou disques. Images de test supprimées et non publiées.
-- L’installateur est compilé avec Inno Setup ; le script Pascal de maintenance est vérifié par compilation. L’application est compilée avec PyInstaller. Le résultat du contrôle de démarrage packagé figure dans le rapport livré.
+- 15 tests automatisés réussis : les 8 tests de sauvegarde/export/historique existants, 6 tests du raccourci et 1 scénario d’interface.
+- Raccourci : Impr. écran, relâchement seul, maintien de touche sans répétition, touche non configurée, désactivation hors session, modificateur incorrect, relâchement du modificateur avant la touche, changement de configuration pendant un appui et normalisation Ctrl gauche/droite. Les événements sont simulés au niveau de la logique de correspondance, sans injection clavier.
+- Interface : deux barres verticales, absence du bouton Capturer, changement et restauration de raccourci, chaque bouton Ouvrir associé au bon dossier par simulation de l’appel Windows, deux captures avec écrans simulés aux coordonnées distinctes (dont négatives), changement ultérieur de sélection sans modification des captures déjà demandées et finalisation du XHTML.
+- Contrôle visuel local de la fenêtre 1.4 : nouvelle icône, rappel et configuration du raccourci, bouton de réinitialisation, défilement global effectif.
+- Le contrôle de démarrage packagé et les journaux PyInstaller/Inno Setup sont fournis dans le lot de vérification local. Le lot GitHub contient les journaux du runner et son environnement.
 
-## À vérifier sur poste utilisateur
+## Limites des vérifications
 
-- Installation, mise à jour depuis 1.2, choix de désinstallation et annulation avec une installation existante. Aucune désinstallation du profil utilisateur réel n’a été exécutée pendant ces essais.
-- Windows 10 et configurations multi-écrans/DPI mixtes, touche Impr. écran physique et conflit avec l’outil Windows.
-- Perte d’accès à un dossier réseau, disque saturé, arrêt forcé réel pendant remplacement ; les pannes d’export sont testées par simulation.
-- Affichage des cinq chemins très longs avec les réglages d’accessibilité Windows ; ouverture effective de l’Explorateur sur un dossier déplacé.
+Les tests d’interface simulent les écrans et les captures. Ils ne prouvent pas le bon fonctionnement de tous les claviers, des raccourcis réservés, du multi-écran physique, des DPI mixtes ou des contenus protégés. À vérifier manuellement : Windows 10, raccourcis physiques, défilement sur pavé tactile, cinq chemins très longs, modification d’écran réel et installation/mise à jour/désinstallation. Aucune désinstallation de l’application utilisateur existante n’a été effectuée.
 
-Le XML est analysé avant remplacement, sans validation DTD/XSD complète. Les fichiers temporaires permettent une récupération manuelle, pas une reprise automatique. Le binaire et le Setup sont non signés.
+La validation XHTML confirme un XML bien formé, pas une conformité DTD/XSD complète. Les sauvegardes progressives et fichiers temporaires de récupération sont conservés depuis 1.3. L’application ne transmet aucune capture au réseau. Les tests ne sont pas une garantie contre une panne matérielle ou une politique de sécurité d’entreprise.
