@@ -1,4 +1,4 @@
-# StepsShot 1.0
+# StepsShot 1.0.2
 
 StepsShot transforme des captures d’écran en un guide Word modifiable. Successeur de CapturesXHTML, sous licence MIT. Mainteneur : RauVolt.
 
@@ -28,7 +28,7 @@ Les cinq derniers fichiers et leurs chemins restent affichés, avec un bouton ve
 
 ## Installation et mise à jour
 
-Un seul `StepsShot-1.0.1-Setup.exe`, pour Windows 10/11 x64, sans droits administrateur. Nouvelle installation dans `%LOCALAPPDATA%/Programs/StepsShot`. L’identité d’installation de CapturesXHTML est conservée pour qu’une mise à jour existante utilise son répertoire précédent et sa même entrée de désinstallation, sous le nouveau nom. L’ancien raccourci est remplacé par StepsShot. Documents, historique ancien et captures résiduelles ne sont pas supprimés.
+Un seul `StepsShot-1.0.2-Setup.exe`, pour Windows 10/11 x64, sans droits administrateur. Nouvelle installation dans `%LOCALAPPDATA%/Programs/StepsShot`. L’identité d’installation de CapturesXHTML est conservée pour qu’une mise à jour existante utilise son répertoire précédent et sa même entrée de désinstallation, sous le nouveau nom. L’ancien raccourci est remplacé par StepsShot. Documents, historique ancien et captures résiduelles ne sont pas supprimés.
 
 Lorsqu’une installation existe, le Setup propose mise à jour/réinstallation, désinstallation ou annulation. Aucune désinstallation du poste utilisateur n’est effectuée automatiquement pendant les tests.
 
@@ -42,9 +42,9 @@ Sur Windows avec Python 3.12 ou 3.13 x64 (incluant Tkinter) et Inno Setup 6 :
 ./build_windows.ps1 -Python 'C:/chemin/python.exe' -ISCC 'C:/chemin/Inno Setup 6/ISCC.exe'
 ```
 
-Le script crée `.venv`, installe les dépendances, exécute les tests, génère l’icône, inclut le modèle DOCX et construit `installer/StepsShot-1.0.1-Setup.exe`. Internet est nécessaire pour les dépendances. Office n’est pas requis pour la compilation.
+Le script crée `.venv`, installe les dépendances, exécute les tests, génère l’icône, inclut le modèle DOCX et construit `installer/StepsShot-1.0.2-Setup.exe`. Internet est nécessaire pour les dépendances. Office n’est pas requis pour la compilation.
 
-GitHub Actions compile sous Windows avec Python 3.13 et prépare une Release **brouillon** `v1.0.1`, incluant Setup, sources, rapport et empreintes SHA256. Aucune publication automatique d’une Release déjà publiée. Le lancement manuel est disponible dans Actions. Voir [VERIFICATION.md](VERIFICATION.md).
+GitHub Actions compile sous Windows avec Python 3.13 et prépare une Release **brouillon** `v1.0.2`, incluant Setup, sources, rapport et empreintes SHA256. Aucune publication automatique d’une Release déjà publiée. Le lancement manuel est disponible dans Actions. Voir [VERIFICATION.md](VERIFICATION.md).
 
 ## Confidentialité et licence
 
@@ -55,3 +55,7 @@ Code du projet sous [MIT](LICENSE), bibliothèques tierces sous leurs licences r
 ## Correctif installateur 1.0.1
 
 Corrige l’erreur `TaskDialogMsgBox: Invalid ButtonLabels` lors de la détection d’une installation existante. Seuls les deux boutons d’action sont personnalisés ; Windows fournit le bouton Annuler. L’application reste StepsShot 1.0 (binaire 1.0.0), seul l’installateur passe à 1.0.1.
+
+## Curseur visible depuis 1.0.2
+
+Le curseur Windows visible est intégré au PNG et donc au document Word. Sa forme et sa position sont relevées juste avant la capture, avec prise en compte du point actif du curseur et de l’origine du moniteur. Il est omis si Windows le masque ou si son point actif se trouve sur un autre écran. Les curseurs flèche, texte, transparents et monochromes sont dessinés par Windows sur les pixels de l’image. La capture et le curseur reflètent le moment de traitement par le worker, pas nécessairement l’appui initial si des demandes sont en attente. Les coordonnées utilisent le contexte DPI de l’application ; les configurations physiques à DPI mixtes restent à vérifier.

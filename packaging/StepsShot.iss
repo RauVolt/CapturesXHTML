@@ -4,7 +4,7 @@
 [Setup]
 AppId={{4C05EE44-EE4F-40C3-8686-294F94E78257}
 AppName=StepsShot
-AppVersion=1.0.1
+AppVersion=1.0.2
 DefaultDirName={localappdata}\Programs\StepsShot
 DefaultGroupName=StepsShot
 PrivilegesRequired=lowest
@@ -13,7 +13,7 @@ DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 MinVersion=10.0
 OutputDir=..\installer
-OutputBaseFilename=StepsShot-1.0.1-Setup
+OutputBaseFilename=StepsShot-1.0.2-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

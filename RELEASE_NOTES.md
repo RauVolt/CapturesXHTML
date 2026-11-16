@@ -1,9 +1,10 @@
-StepsShot 1.0.1 — correctif de l’installateur
+StepsShot 1.0.2 — curseur visible dans les captures
 
-Corrige l’erreur « TaskDialogMsgBox: Invalid ButtonLabels » qui empêchait le lancement du Setup lorsqu’une installation existante était détectée.
+- Le pointeur Windows est intégré aux captures PNG et aux images du document Word.
+- Position corrigée selon l’origine de l’écran et le point actif du curseur ; formes et transparence dessinées par Windows.
+- Le curseur est omis lorsqu’il est masqué ou placé sur un autre écran. Au bord du moniteur, le dessin est rogné aux limites de la capture.
+- Correctif du dialogue de maintenance 1.0.1 conservé.
 
-Le dialogue conserve Mettre à jour ou réinstaller, Désinstaller StepsShot et Annuler. Les deux boutons d’action sont personnalisés ; Windows fournit Annuler. L’application reste StepsShot 1.0 (binaire 1.0.0) ; ce correctif concerne uniquement le Setup.
+23 tests automatisés réussis localement : export Word, sauvegarde progressive, raccourcis, historique, changement d’écran simulé et six tests du curseur, dont le dessin natif flèche/texte sur fonds clair et sombre. Les configurations physiques à DPI mixtes et les curseurs animés ne sont pas entièrement vérifiés. La position correspond au moment de capture dans le worker.
 
-Le dialogue a été exécuté dans un Setup de test sans installation/désinstallation, puis annulé avec succès. Le Setup de production est compilé séparément sans le mode de test. Voir VERIFICATION.md pour les limites. Aucune désinstallation de l’application utilisateur n’a été effectuée.
-
-Installeur Windows x64 par utilisateur, sans élévation. Non signé. Sources MIT et journaux joints. Ce correctif remplace le Setup 1.0.0.
+Installateur Windows x64 par utilisateur, non signé. Sources MIT, rapport et SHA256SUMS.txt joints. La Release reste en brouillon.

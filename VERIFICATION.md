@@ -20,3 +20,7 @@ La mise en page utilise des styles Word ordinaires, des images intégrées et un
 ## Correctif installateur 1.0.1
 
 Le même dialogue de maintenance a été exécuté dans un Setup de test compilé avec `MaintenanceDialogTest`, qui affiche le dialogue puis s’arrête sans installer ni désinstaller. Les trois boutons Mettre à jour ou réinstaller, Désinstaller StepsShot et Annuler sont présents ; Annuler ferme le programme sans erreur. Le Setup de production est compilé séparément sans ce symbole. Le démarrage du Setup de production a aussi été vérifié puis annulé avant installation. La mise à jour et la désinstallation réelles du profil utilisateur restent non exécutées.
+
+## Version 1.0.2
+
+23 tests réussis, dont six nouveaux tests du curseur : géométrie des moniteurs à coordonnées négatives, omission hors écran, point actif et bord supérieur/gauche, curseur masqué, dessin natif des curseurs Windows flèche et texte sur fond clair/sombre, rognage au bord de l’image. Ces essais utilisent des pixels synthétiques sans déplacer le pointeur utilisateur. Le contrôle du binaire packagé exerce la récupération du curseur, la capture sur pixels de test et l’export DOCX. Les écrans physiques à DPI mixtes et les curseurs animés restent à vérifier ; aucune installation existante n’a été modifiée pendant les tests.

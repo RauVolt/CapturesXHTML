@@ -18,6 +18,7 @@ from tkinter import filedialog, messagebox, ttk
 import tkinter as tk
 
 from PIL import ImageGrab
+from cursor_capture import grab_with_cursor
 from documents import export_docx
 from screeninfo import get_monitors
 from shortcuts import KEYS, MODIFIERS, DEFAULT_SHORTCUT, ShortcutMatcher, label, validate
@@ -164,7 +165,7 @@ class ProgressiveSession:
         self.sequence += 1
         stamp = datetime.now().astimezone().isoformat(timespec='seconds')
         filename = self.folder / f'capture_{self.sequence:06d}.png'
-        image = ImageGrab.grab(bbox=self.bounds if bounds is None else bounds, all_screens=True)
+        image = grab_with_cursor(self.bounds if bounds is None else bounds, ImageGrab.grab)
         try:
             image.save(filename, format='PNG')
         finally:
@@ -228,7 +229,7 @@ class ScrollFrame(ttk.Frame):
 class CaptureApp:
     def __init__(self, root):
         self.root = root
-        root.title('StepsShot · 1.0')
+        root.title('StepsShot · 1.0.2')
         root.geometry('1080x900')
         root.minsize(780, 520)
         icon = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent)) / 'assets' / 'capture.ico'
@@ -315,7 +316,7 @@ class CaptureApp:
         name.pack(side='left')
         tk.Label(name,text='StepsShot',bg=ink,fg='white',font=('Segoe UI Semibold',28)).pack(anchor='w')
         tk.Label(name,text='Vos étapes deviennent un guide modifiable.',bg=ink,fg='#b6cbd5',font=('Segoe UI',11)).pack(anchor='w')
-        tk.Label(top,text='1.0  /  WINDOWS',bg='#20394b',fg='#9ce6d7',padx=14,pady=8,font=('Segoe UI Semibold',9)).pack(side='right')
+        tk.Label(top,text='1.0.2  /  WINDOWS',bg='#20394b',fg='#9ce6d7',padx=14,pady=8,font=('Segoe UI Semibold',9)).pack(side='right')
         tk.Label(hero,text='NOMMER    →    CHOISIR L’ÉCRAN    →    CAPTURER    →    COMPLÉTER DANS WORD',
                  bg=ink,fg='#8fdbcd',font=('Segoe UI Semibold',9)).pack(anchor='w',pady=(18,0))
         card = ttk.Frame(shell,padding=24,style='Card.TFrame')
@@ -705,7 +706,10 @@ if __name__ == '__main__':
             with tempfile.TemporaryDirectory(dir=Path(sys.argv[2]).resolve().parent) as folder:
                 from PIL import Image
                 png = Path(folder) / 'probe.png'
-                Image.new('RGB', (160, 90), '#11776b').save(png)
+                with grab_with_cursor((0, 0, 160, 90),
+                        lambda **kwargs: Image.new('RGB', (160, 90), '#11776b')) as probe:
+                    probe.save(png)
+                report['cursor_pipeline'] = True
                 export_docx(Path(folder) / 'probe.docx', 'Guide de vérification',
                             [(datetime.now().astimezone().isoformat(), png)])
                 report['docx_export'] = True
