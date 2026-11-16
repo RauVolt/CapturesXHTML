@@ -1,33 +1,36 @@
 #ifndef AppDist
-  #define AppDist "..\dist\CapturesXHTML"
+  #define AppDist "..\dist\StepsShot"
 #endif
 [Setup]
 AppId={{4C05EE44-EE4F-40C3-8686-294F94E78257}
-AppName=CapturesXHTML
-AppVersion=1.4.0
-DefaultDirName={localappdata}\Programs\CapturesXHTML
-DefaultGroupName=CapturesXHTML
+AppName=StepsShot
+AppVersion=1.0.0
+DefaultDirName={localappdata}\Programs\StepsShot
+DefaultGroupName=StepsShot
 PrivilegesRequired=lowest
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 MinVersion=10.0
 OutputDir=..\installer
-OutputBaseFilename=CapturesXHTML-1.4.0-Setup
+OutputBaseFilename=StepsShot-1.0.0-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\assets\capture.ico
-UninstallDisplayIcon={app}\CapturesXHTML.exe
+UninstallDisplayIcon={app}\StepsShot.exe
 CloseApplications=yes
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 [Files]
 Source: "{#AppDist}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Icons]
-Name: "{userprograms}\CapturesXHTML"; Filename: "{app}\CapturesXHTML.exe"
+Name: "{userprograms}\StepsShot"; Filename: "{app}\StepsShot.exe"
+[InstallDelete]
+Type: files; Name: "{userprograms}\CapturesXHTML.lnk"
+Type: files; Name: "{app}\CapturesXHTML.exe"
 [Run]
-Filename: "{app}\CapturesXHTML.exe"; Description: "Ouvrir CapturesXHTML"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\StepsShot.exe"; Description: "Ouvrir StepsShot"; Flags: nowait postinstall skipifsilent
 
 [Code]
 function InitializeSetup(): Boolean;
@@ -43,10 +46,10 @@ begin
     'InstallLocation', InstallPath) then Exit;
   Uninstaller := AddBackslash(InstallPath) + 'unins000.exe';
   if not FileExists(Uninstaller) then Exit;
-  Choice := TaskDialogMsgBox('CapturesXHTML est déjà installé',
-    'Choisissez une action. Vos documents XHTML et votre historique seront conservés.',
+  Choice := TaskDialogMsgBox('StepsShot est déjà installé',
+    'Choisissez une action. Vos documents et votre historique seront conservés.',
     mbConfirmation, MB_YESNOCANCEL, ['Mettre à jour ou réinstaller',
-    'Désinstaller CapturesXHTML', 'Annuler'], 0);
+    'Désinstaller StepsShot', 'Annuler'], 0);
   if Choice = IDYES then Exit;
   Result := False;
   if Choice = IDNO then begin

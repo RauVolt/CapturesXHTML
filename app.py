@@ -1,4 +1,4 @@
-"""Capture d'un moniteur Windows vers un document XHTML autonome."""
+"""StepsShot 1.0 — guided screen capture to editable Word documents."""
 import base64
 import ctypes
 import html
@@ -18,6 +18,7 @@ from tkinter import filedialog, messagebox, ttk
 import tkinter as tk
 
 from PIL import ImageGrab
+from documents import export_docx
 from screeninfo import get_monitors
 from shortcuts import KEYS, MODIFIERS, DEFAULT_SHORTCUT, ShortcutMatcher, label, validate
 
@@ -110,48 +111,6 @@ class PrintScreenHook:
             self._thread.join(timeout=2)
 
 
-def valid_xml_file(path):
-    """Analyse XML en flux, sans charger les images Base64 en mémoire."""
-    parser = xml.parsers.expat.ParserCreate()
-    with open(path, 'rb') as stream:
-        while block := stream.read(128 * 1024):
-            parser.Parse(block, False)
-        parser.Parse(b'', True)
-
-
-def export_xhtml(path, name, captures):
-    target = Path(path)
-    # Fichier provisoire à côté de la destination : remplacement atomique final.
-    fd, partial = tempfile.mkstemp(prefix='.captures-', suffix='.xhtml.tmp', dir=target.parent)
-    os.close(fd)
-    try:
-        with open(partial, 'w', encoding='utf-8', newline='\n') as out:
-            out.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-            out.write('<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="fr"><head>')
-            out.write('<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />')
-            out.write(f'<title>{html.escape(name)}</title>')
-            out.write('<style type="text/css">body{font-family:Arial,sans-serif;margin:32px;color:#222}'
-                      'h1{border-bottom:2px solid #333;padding-bottom:12px}'
-                      'section{margin:28px 0 40px;page-break-inside:avoid}'
-                      'h2{margin-bottom:5px}.date{color:#555;font-size:0.9em}'
-                      'img{max-width:100%;height:auto;border:1px solid #ccc}</style></head><body>')
-            out.write(f'<h1>{html.escape(name)}</h1>')
-            for i, (stamp, image_path) in enumerate(captures, 1):
-                date = datetime.fromisoformat(stamp).strftime('%d/%m/%Y %H:%M:%S')
-                out.write(f'<section><h2>Capture {i}</h2><p class="date">{html.escape(date)}</p>')
-                out.write(f'<img alt="Capture {i}" src="data:image/png;base64,')
-                with open(image_path, 'rb') as image:
-                    while block := image.read(3 * 65536):
-                        out.write(base64.b64encode(block).decode('ascii'))
-                out.write('" /></section>')
-            out.write('</body></html>')
-        valid_xml_file(partial)
-        os.replace(partial, target)
-    finally:
-        if os.path.exists(partial):
-            os.unlink(partial)
-
-
 def atomic_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -192,6 +151,7 @@ class ProgressiveSession:
         self.captures = []
         self.sequence = 0
         self.saved_count = 0
+        self.target_version = None
         Path(temp_root).mkdir(parents=True, exist_ok=True)
         self.folder = Path(tempfile.mkdtemp(prefix='session-', dir=temp_root))
         try:
@@ -210,14 +170,25 @@ class ProgressiveSession:
         finally:
             image.close()
         self.captures.append((stamp, filename))
-        # This local manifest permits manual recovery even if the XHTML update fails.
+        # This local manifest permits manual recovery even if the DOCX update fails.
         atomic_json(self.folder / 'session.json', {
             'title': self.title, 'target': str(self.target),
             'captures': [(t, str(p)) for t, p in self.captures]})
         self.save()
 
     def save(self):
-        export_xhtml(self.target, self.title, self.captures)
+        if self.target_version is not None:
+            try:
+                stat = self.target.stat()
+                current = (stat.st_mtime_ns, stat.st_size)
+            except FileNotFoundError:
+                current = None
+            if current != self.target_version:
+                raise OSError('Le document a été modifié ou déplacé hors de StepsShot. '
+                              'Utilisez Enregistrer une copie pour préserver ces modifications.')
+        export_docx(self.target, self.title, self.captures)
+        stat = self.target.stat()
+        self.target_version = (stat.st_mtime_ns, stat.st_size)
         self.saved_count = len(self.captures)
 
     def cleanup(self):
@@ -238,7 +209,7 @@ class ScrollFrame(ttk.Frame):
         self.body = ttk.Frame(self.canvas, style='Card.TFrame' if background == 'white' else 'TFrame')
         self.item = self.canvas.create_window((0, 0), window=self.body, anchor='nw')
         self.body.bind('<Configure>', lambda e: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
-        self.canvas.bind('<Configure>', lambda e: self.canvas.itemconfigure(self.item, width=e.width))
+        self.canvas.bind('<Configure>', lambda e: (self.canvas.itemconfigure(self.item, width=min(1060, e.width)), self.canvas.coords(self.item, max(0, (e.width-min(1060,e.width))/2), 0)))
         root = self.winfo_toplevel()
         if not getattr(root, '_scroll_handler_installed', False):
             root._scroll_handler_installed = True
@@ -257,9 +228,9 @@ class ScrollFrame(ttk.Frame):
 class CaptureApp:
     def __init__(self, root):
         self.root = root
-        root.title('CapturesXHTML · 1.4')
-        root.geometry('960x850')
-        root.minsize(680, 460)
+        root.title('StepsShot · 1.0')
+        root.geometry('1080x900')
+        root.minsize(780, 520)
         icon = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent)) / 'assets' / 'capture.ico'
         if icon.exists():
             root.iconbitmap(str(icon))
@@ -270,7 +241,15 @@ class CaptureApp:
         self.pending = 0
         self.active = self.finishing = self.initializing = self.closing = False
         self.monitors = []
-        self.data_root = Path(os.environ['LOCALAPPDATA']) / 'CapturesXHTML'
+        self.data_root = Path(os.environ['LOCALAPPDATA']) / 'StepsShot'
+        legacy = Path(os.environ['LOCALAPPDATA']) / 'CapturesXHTML'
+        for filename in ('recent.json', 'settings.json'):
+            target_config = self.data_root / filename
+            if not target_config.exists() and (legacy / filename).exists():
+                try:
+                    atomic_json(target_config, json.loads((legacy / filename).read_text(encoding='utf-8')))
+                except (OSError, ValueError):
+                    pass
         self.history = History(self.data_root / 'recent.json')
         self.shortcut = DEFAULT_SHORTCUT
         try:
@@ -285,7 +264,9 @@ class CaptureApp:
         self.monitor_choice = tk.StringVar()
         self.status = tk.StringVar(value='Prêt pour une nouvelle session')
         self.destination = tk.StringVar(value='Le fichier sera choisi avant la première capture.')
-        self.counter = tk.StringVar(value='0 capture')
+        self.counter = tk.StringVar(value='0 étape')
+        self.save_path = tk.StringVar()
+        self.guidance = tk.StringVar(value='Commencez par nommer votre guide et choisir l’écran à capturer.')
         self._design()
         self.refresh_history()
         self.refresh_monitors()
@@ -294,100 +275,186 @@ class CaptureApp:
         if not self.hook_ok:
             self.status.set('Raccourci indisponible · redémarrez l’application pour réessayer')
             self.start_btn.config(state='disabled')
-        root.after(40, self.process_events)
+        self.poll = root.after(40, self.process_events)
+        self.update_guidance()
         root.protocol('WM_DELETE_WINDOW', self.on_close)
 
     def _design(self):
         style = ttk.Style(self.root)
         style.theme_use('clam')
-        style.configure('.', font=('Segoe UI', 10), background='#f4f6fa', foreground='#17243b')
-        style.configure('TFrame', background='#f4f6fa')
+        ink, muted, paper, accent = '#122536', '#657887', '#eef3f6', '#11776b'
+        self.root.configure(bg=paper)
+        style.configure('.', font=('Segoe UI', 10), background=paper, foreground=ink)
+        style.configure('TFrame', background=paper)
         style.configure('Card.TFrame', background='white')
-        style.configure('TLabel', background='white', foreground='#17243b')
-        style.configure('Muted.TLabel', foreground='#64748b', font=('Segoe UI', 9))
-        style.configure('Title.TLabel', background='#f4f6fa', font=('Segoe UI Semibold', 25))
-        style.configure('Subtitle.TLabel', background='#f4f6fa', foreground='#64748b')
-        style.configure('Heading.TLabel', font=('Segoe UI Semibold', 12))
-        style.configure('Count.TLabel', font=('Segoe UI Semibold', 17), foreground='#2563eb')
-        style.configure('TEntry', padding=10, fieldbackground='#f8fafc', bordercolor='#dce3ed')
-        style.configure('TCombobox', padding=9, fieldbackground='#f8fafc', arrowsize=14)
-        style.configure('TButton', padding=(16, 10), background='#e9eef5', borderwidth=0)
-        style.map('TButton', background=[('active', '#dbe4ef')], foreground=[('disabled', '#94a3b8')])
-        style.configure('Primary.TButton', background='#2563eb', foreground='white')
-        style.map('Primary.TButton', background=[('disabled', '#cbd5e1'), ('active', '#1d4ed8')])
-        outer = ScrollFrame(self.root, background='#f4f6fa')
+        style.configure('TLabel', background='white', foreground=ink)
+        style.configure('Muted.TLabel', foreground=muted, font=('Segoe UI', 9))
+        style.configure('Heading.TLabel', font=('Segoe UI Semibold', 16))
+        style.configure('Step.TLabel', font=('Segoe UI Semibold', 11), foreground=accent)
+        style.configure('Count.TLabel', font=('Segoe UI Semibold', 26), foreground=ink)
+        style.configure('TEntry', padding=11, fieldbackground='#f6f9fb', bordercolor='#dce5e9')
+        style.configure('TCombobox', padding=10, fieldbackground='#f6f9fb', arrowsize=14)
+        style.configure('TButton', padding=(16, 11), background='#e8eff3', foreground=ink, borderwidth=0)
+        style.map('TButton', background=[('active', '#d8e5ec')], foreground=[('disabled', '#91a2ae')])
+        style.configure('Primary.TButton', background=accent, foreground='white', font=('Segoe UI Semibold', 10))
+        style.map('Primary.TButton', background=[('disabled', '#c5d7d5'), ('active', '#0c6157')], foreground=[('disabled','#f3f7f6')])
+        outer = ScrollFrame(self.root, background=paper)
         outer.pack(fill='both', expand=True)
         self.page_scroll = outer
-        shell = ttk.Frame(outer.body, padding=(26, 24))
+        shell = ttk.Frame(outer.body, padding=(28, 24))
         shell.pack(fill='both', expand=True)
-        ttk.Label(shell, text='CapturesXHTML', style='Title.TLabel').pack(anchor='w')
-        ttk.Label(shell, text='Vos captures. Un seul document. Enregistré au fil de la session.',
-                  style='Subtitle.TLabel').pack(anchor='w', pady=(3, 18))
-        card = ttk.Frame(shell, padding=22, style='Card.TFrame')
+        hero = tk.Frame(shell, bg=ink, padx=26, pady=24)
+        hero.pack(fill='x', pady=(0,18))
+        top = tk.Frame(hero, bg=ink)
+        top.pack(fill='x')
+        icon = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent)) / 'assets' / 'capture.png'
+        if icon.exists():
+            self.brand_icon = tk.PhotoImage(file=str(icon)).subsample(4,4)
+            tk.Label(top,image=self.brand_icon,bg=ink).pack(side='left',padx=(0,14))
+        name = tk.Frame(top,bg=ink)
+        name.pack(side='left')
+        tk.Label(name,text='StepsShot',bg=ink,fg='white',font=('Segoe UI Semibold',28)).pack(anchor='w')
+        tk.Label(name,text='Vos étapes deviennent un guide modifiable.',bg=ink,fg='#b6cbd5',font=('Segoe UI',11)).pack(anchor='w')
+        tk.Label(top,text='1.0  /  WINDOWS',bg='#20394b',fg='#9ce6d7',padx=14,pady=8,font=('Segoe UI Semibold',9)).pack(side='right')
+        tk.Label(hero,text='NOMMER    →    CHOISIR L’ÉCRAN    →    CAPTURER    →    COMPLÉTER DANS WORD',
+                 bg=ink,fg='#8fdbcd',font=('Segoe UI Semibold',9)).pack(anchor='w',pady=(18,0))
+        card = ttk.Frame(shell,padding=24,style='Card.TFrame')
         card.pack(fill='x')
-        ttk.Label(card, text='Nouvelle session', style='Heading.TLabel').pack(anchor='w')
-        fields = ttk.Frame(card, style='Card.TFrame')
-        fields.pack(fill='x', pady=(16, 12))
-        fields.columnconfigure(0, weight=1)
-        fields.columnconfigure(1, weight=1)
-        ttk.Label(fields, text='Titre du document', style='Muted.TLabel').grid(row=0, column=0, sticky='w')
-        ttk.Label(fields, text='Écran à capturer', style='Muted.TLabel').grid(row=0, column=1, sticky='w', padx=(16, 0))
-        self.name_entry = ttk.Entry(fields, textvariable=self.document)
-        self.name_entry.grid(row=1, column=0, sticky='ew', pady=(5, 0))
-        self.combo = ttk.Combobox(fields, textvariable=self.monitor_choice, state='readonly')
-        self.combo.grid(row=1, column=1, sticky='ew', padx=(16, 0), pady=(5, 0))
-        self.combo.bind('<<ComboboxSelected>>', self.monitor_changed)
-        buttons = ttk.Frame(card, style='Card.TFrame')
-        buttons.pack(fill='x')
-        self.start_btn = ttk.Button(buttons, text='Choisir le fichier et démarrer', command=self.start, style='Primary.TButton')
-        self.start_btn.pack(side='left')
-        self.refresh_btn = ttk.Button(buttons, text='Actualiser les écrans', command=self.refresh_monitors)
-        self.refresh_btn.pack(side='right')
-        live = ttk.Frame(shell, padding=22, style='Card.TFrame')
-        live.pack(fill='x', pady=14)
-        ttk.Label(live, textvariable=self.counter, style='Count.TLabel').pack(anchor='w')
-        ttk.Label(live, textvariable=self.status, wraplength=740).pack(anchor='w', pady=(6, 3))
-        ttk.Label(live, textvariable=self.destination, style='Muted.TLabel', wraplength=740).pack(anchor='w', pady=(0, 12))
-        row = ttk.Frame(live, style='Card.TFrame')
+        ttk.Label(card,text='Préparez votre guide',style='Heading.TLabel').pack(anchor='w')
+        fields = ttk.Frame(card,style='Card.TFrame')
+        fields.pack(fill='x',pady=(18,14))
+        fields.columnconfigure(0,weight=1,uniform='fields')
+        fields.columnconfigure(1,weight=1,uniform='fields')
+        ttk.Label(fields,text='1. Donnez un nom à votre guide',style='Step.TLabel').grid(row=0,column=0,sticky='w')
+        ttk.Label(fields,text='2. Choisissez l’écran',style='Step.TLabel').grid(row=0,column=1,sticky='w',padx=(18,0))
+        self.name_entry = ttk.Entry(fields,textvariable=self.document)
+        self.name_entry.grid(row=1,column=0,sticky='ew',pady=(8,5))
+        self.combo = ttk.Combobox(fields,textvariable=self.monitor_choice,state='readonly')
+        self.combo.grid(row=1,column=1,sticky='ew',padx=(18,0),pady=(8,5))
+        self.combo.bind('<<ComboboxSelected>>',self.monitor_changed)
+        ttk.Label(fields,text='Exemple : Configurer une imprimante',style='Muted.TLabel').grid(row=2,column=0,sticky='w')
+        self.refresh_btn = ttk.Button(fields,text='Actualiser les écrans',command=self.refresh_monitors)
+        self.refresh_btn.grid(row=2,column=1,sticky='e',padx=(18,0))
+        ttk.Label(card,text='3. Choisissez où enregistrer le document',style='Step.TLabel').pack(anchor='w',pady=(4,8))
+        location = ttk.Frame(card,style='Card.TFrame')
+        location.pack(fill='x')
+        self.browse_btn = ttk.Button(location,text='Choisir un dossier…',command=self.choose_destination)
+        self.browse_btn.pack(side='right',padx=(12,0))
+        self.path_entry = ttk.Entry(location,textvariable=self.save_path,state='readonly')
+        self.path_entry.pack(side='left',fill='x',expand=True)
+        ttk.Label(card,text='Format Word .docx · sauvegarde automatique après chaque capture',style='Muted.TLabel').pack(anchor='w',pady=(8,16))
+        self.start_btn = ttk.Button(card,text='Démarrer la session   →',command=self.start,style='Primary.TButton')
+        self.start_btn.pack(anchor='w')
+        live = ttk.Frame(shell,padding=24,style='Card.TFrame')
+        live.pack(fill='x',pady=16)
+        row = ttk.Frame(live,style='Card.TFrame')
         row.pack(fill='x')
-        ttk.Label(row, textvariable=self.shortcut_hint, style='Heading.TLabel').pack(side='left')
-        self.end_btn = ttk.Button(row, text='Terminer', command=self.finish, state='disabled')
-        self.end_btn.pack(side='right')
-        config = ttk.Frame(live, style='Card.TFrame')
-        config.pack(fill='x', pady=(16, 0))
-        ttk.Label(config, text='Raccourci', style='Muted.TLabel').pack(side='left', padx=(0, 12))
-        self.modifier_combo = ttk.Combobox(config, textvariable=self.shortcut_modifier,
-                    values=list(MODIFIERS), state='readonly', width=8)
+        ttk.Label(row,text='4. Capturez vos étapes',style='Heading.TLabel').pack(side='left')
+        ttk.Label(row,textvariable=self.counter,style='Count.TLabel').pack(side='right')
+        ttk.Label(live,textvariable=self.guidance,wraplength=840).pack(anchor='w',pady=(10,5))
+        self.shortcut_label = ttk.Label(live,textvariable=self.shortcut_hint,style='Step.TLabel')
+        self.shortcut_label.pack(anchor='w',pady=(4,12))
+        config = ttk.Frame(live,style='Card.TFrame')
+        config.pack(fill='x')
+        self.modifier_combo = ttk.Combobox(config,textvariable=self.shortcut_modifier,values=list(MODIFIERS),state='readonly',width=8)
         self.modifier_combo.pack(side='left')
-        ttk.Label(config, text=' + ').pack(side='left')
-        self.key_combo = ttk.Combobox(config, textvariable=self.shortcut_key,
-                    values=list(KEYS), state='readonly', width=15)
+        ttk.Label(config,text=' + ').pack(side='left')
+        self.key_combo = ttk.Combobox(config,textvariable=self.shortcut_key,values=list(KEYS),state='readonly',width=15)
         self.key_combo.pack(side='left')
-        self.modifier_combo.bind('<<ComboboxSelected>>', self.configure_shortcut)
-        self.key_combo.bind('<<ComboboxSelected>>', self.configure_shortcut)
-        ttk.Button(config, text='Retour config. initiale', command=self.reset_shortcut).pack(side='right')
-        ttk.Label(live, text='Une touche seule ou Ctrl / Alt / Maj + une touche. Le raccourci est réservé pendant la session.',
-                  style='Muted.TLabel', wraplength=720).pack(anchor='w', pady=(8, 0))
-        recent = ttk.Frame(shell, padding=(22, 18), style='Card.TFrame')
+        self.modifier_combo.bind('<<ComboboxSelected>>',self.configure_shortcut)
+        self.key_combo.bind('<<ComboboxSelected>>',self.configure_shortcut)
+        ttk.Button(config,text='Rétablir Impr. écran',command=self.reset_shortcut).pack(side='right')
+        ttk.Label(live,text='Le raccourci est actif uniquement pendant la session. L’écran peut être changé à tout moment.',
+                  style='Muted.TLabel',wraplength=840).pack(anchor='w',pady=(8,14))
+        self.end_btn = ttk.Button(live,text='Terminer et préparer le document',command=self.finish,state='disabled',style='Primary.TButton')
+        self.end_btn.pack(anchor='w')
+        ttk.Label(live,textvariable=self.status,wraplength=840).pack(anchor='w',pady=(12,4))
+        ttk.Label(live,textvariable=self.destination,style='Muted.TLabel',wraplength=840).pack(anchor='w')
+        edit = ttk.Frame(shell,padding=24,style='Card.TFrame')
+        edit.pack(fill='x',pady=(0,16))
+        ttk.Label(edit,text='5. Complétez votre guide',style='Heading.TLabel').pack(anchor='w')
+        ttk.Label(edit,text='Après Terminer, ouvrez le document dans Word ou LibreOffice Writer pour modifier les textes, '
+                  'ajouter vos explications et déplacer les images.',wraplength=840).pack(anchor='w',pady=(8,12))
+        actions = ttk.Frame(edit,style='Card.TFrame')
+        actions.pack(fill='x')
+        self.open_doc_btn = ttk.Button(actions,text='Ouvrir le document',command=self.open_last_document,state='disabled')
+        self.open_doc_btn.pack(side='left')
+        self.copy_btn = ttk.Button(actions,text='Enregistrer une copie…',command=self.save_copy,state='disabled')
+        self.copy_btn.pack(side='right')
+        ttk.Label(edit,text='Attendez la fin de la session avant de modifier le document. Les captures restent des images.',
+                  style='Muted.TLabel',wraplength=840).pack(anchor='w',pady=(10,0))
+        recent = ttk.Frame(shell,padding=24,style='Card.TFrame')
         recent.pack(fill='x')
-        ttk.Label(recent, text='Documents récents', style='Heading.TLabel').pack(anchor='w')
-        ttk.Label(recent, text='Les 5 derniers fichiers enregistrés sur cet ordinateur', style='Muted.TLabel').pack(anchor='w', pady=(2, 8))
-        self.history_scroll = ScrollFrame(recent, background='white', height=190)
+        ttk.Label(recent,text='Vos guides récents',style='Heading.TLabel').pack(anchor='w')
+        ttk.Label(recent,text='Les cinq derniers documents · vos fichiers restent sur votre ordinateur',style='Muted.TLabel').pack(anchor='w',pady=(4,12))
+        self.history_scroll = ScrollFrame(recent,background='white',height=210)
         self.history_scroll.pack(fill='x')
-        self.recent_rows = []
+        self.recent_rows=[]
         for i in range(5):
-            box = ttk.Frame(self.history_scroll.body, style='Card.TFrame')
-            box.pack(fill='x', pady=4)
-            opener = ttk.Button(box, text='Ouvrir', command=lambda index=i: self.open_history_folder(index))
-            opener.pack(side='right', padx=(12, 0))
-            text_box = ttk.Frame(box, style='Card.TFrame')
-            text_box.pack(side='left', fill='both', expand=True)
-            title = ttk.Label(text_box, text='', font=('Segoe UI Semibold', 10), wraplength=570)
+            box=ttk.Frame(self.history_scroll.body,style='Card.TFrame')
+            box.pack(fill='x',pady=6)
+            opener=ttk.Button(box,text='Dossier  ↗',command=lambda index=i:self.open_history_folder(index))
+            opener.pack(side='right',padx=(12,0))
+            text_box=ttk.Frame(box,style='Card.TFrame')
+            text_box.pack(side='left',fill='both',expand=True)
+            title=ttk.Label(text_box,text='',font=('Segoe UI Semibold',10),wraplength=650)
             title.pack(anchor='w')
-            path = ttk.Label(text_box, text='', style='Muted.TLabel', wraplength=570)
+            path=ttk.Label(text_box,text='',style='Muted.TLabel',wraplength=650)
             path.pack(anchor='w')
-            self.recent_rows.append((title, path, opener))
-            text_box.bind('<Configure>', lambda e, t=title, p=path: (t.configure(wraplength=max(120, e.width)), p.configure(wraplength=max(120, e.width))))
+            self.recent_rows.append((title,path,opener))
+            text_box.bind('<Configure>',lambda e,t=title,p=path:(t.configure(wraplength=max(120,e.width)),p.configure(wraplength=max(120,e.width))))
+        self.document.trace_add('write',lambda *args:self.update_guidance())
+
+    def update_guidance(self):
+        if not self.active and not self.initializing:
+            if not self.document.get().strip():
+                self.guidance.set('Étape 1 · Donnez un nom à votre guide.')
+            elif self.combo.current()<0:
+                self.guidance.set('Étape 2 · Sélectionnez un écran dans la liste.')
+            elif not self.save_path.get():
+                self.guidance.set('Étape 3 · Choisissez le nom du fichier et son dossier de sauvegarde.')
+            else:
+                self.guidance.set('Tout est prêt · cliquez sur Démarrer la session.')
+
+    def choose_destination(self):
+        name=self.document.get().strip()
+        if not name:
+            messagebox.showwarning('Nommez votre guide','Étape 1 : saisissez d’abord un nom pour votre guide.')
+            self.name_entry.focus_set()
+            return
+        safe=re.sub(r'[<>:"/\\|?*\x00-\x1f]','_',name).strip('. ') or 'guide'
+        target=filedialog.asksaveasfilename(title='Enregistrer votre guide Word',initialfile=safe+'.docx',
+            defaultextension='.docx',filetypes=[('Document Word','*.docx')])
+        if target:
+            if Path(target).suffix.lower()!='.docx':
+                messagebox.showwarning('Format Word','Choisissez un fichier avec l’extension .docx.')
+                return
+            self.save_path.set(target)
+            self.update_guidance()
+
+    def open_last_document(self):
+        if self.active or not self.history.items:
+            return
+        try:
+            os.startfile(self.history.items[0]['path'])
+        except OSError as exc:
+            messagebox.showerror('Document indisponible',str(exc))
+
+    def save_copy(self):
+        if not self.active or self.pending or self.finishing:
+            return
+        target=filedialog.asksaveasfilename(title='Enregistrer une copie du guide',defaultextension='.docx',
+                    filetypes=[('Document Word','*.docx')])
+        if not target:
+            return
+        if Path(target).suffix.lower()!='.docx' or Path(target).resolve()==self.session.target.resolve():
+            messagebox.showwarning('Copie du document','Choisissez un autre fichier .docx.')
+            return
+        self.session.target=Path(target)
+        self.session.target_version=None
+        self.save_path.set(target)
+        self.destination.set(target)
+        self.finish()
 
     def refresh_history(self):
         for i, (title, path, opener) in enumerate(self.recent_rows):
@@ -444,6 +511,7 @@ class CaptureApp:
         self.configure_shortcut()
 
     def monitor_changed(self, event=None):
+        self.update_guidance()
         if self.active and not self.finishing:
             self.status.set('Écran changé · les prochaines captures utiliseront la sélection actuelle')
 
@@ -457,16 +525,20 @@ class CaptureApp:
             self.status.set(f'Écrans indisponibles : {exc}')
 
     def start(self):
-        if self.active or self.initializing:
+        if self.active or self.initializing or not self.hook_ok:
             return
         name = self.document.get().strip()
         if not name or self.combo.current() < 0:
             messagebox.showwarning('Nouvelle session', 'Saisissez un titre et sélectionnez un écran.')
             return
-        safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name).strip('. ') or 'captures'
-        target = filedialog.asksaveasfilename(title='Créer le document XHTML', initialfile=safe + '.xhtml',
-                    defaultextension='.xhtml', filetypes=[('Document XHTML', '*.xhtml')])
+        if not self.save_path.get():
+            self.choose_destination()
+        target=self.save_path.get()
         if not target:
+            return
+        # Reconfirm replacements at session start, not merely when choosing a path.
+        if Path(target).exists() and not messagebox.askyesno('Remplacer le document ?',
+                'Ce fichier existe déjà. Créer un nouveau guide à cet emplacement le remplacera. Continuer ?'):
             return
         m = self.monitors[self.combo.current()]
         bounds = (m.x, m.y, m.x + m.width, m.y + m.height)
@@ -487,6 +559,8 @@ class CaptureApp:
         self.name_entry.config(state='disabled' if locked else 'normal')
         self.combo.config(state='readonly')
         self.refresh_btn.config(state='disabled' if locked else 'normal')
+        self.browse_btn.config(state='disabled' if locked else 'normal')
+        self.open_doc_btn.config(state='disabled' if locked else ('normal' if self.history.items else 'disabled'))
 
     def capture(self):
         if not self.active or self.finishing:
@@ -535,7 +609,9 @@ class CaptureApp:
                     self.session = payload
                     self.initializing = False
                     self.active = True
-                    self.counter.set('0 capture')
+                    self.counter.set('0 étape')
+                    self.guidance.set('Utilisez votre raccourci pour capturer. Chaque étape est enregistrée dans le document Word.')
+                    self.copy_btn.config(state='normal')
                     self.status.set('Document créé · sauvegarde automatique activée')
                     self.remember()
                     self.end_btn.config(state='normal')
@@ -545,7 +621,7 @@ class CaptureApp:
                     self.initializing = False
                     self._lock_fields(False)
                     self.status.set('Création impossible · choisissez un autre emplacement')
-                    messagebox.showerror('Document XHTML', payload)
+                    messagebox.showerror('Document Word', payload)
                 elif kind in ('saved', 'capture_error'):
                     self.pending -= 1
                     if kind == 'saved':
@@ -554,12 +630,14 @@ class CaptureApp:
                         self.remember()
                     else:
                         error, count, saved = payload
-                        self.status.set(f'Échec de capture ou sauvegarde · {saved}/{count} intégrée(s) au XHTML. Réessayez avec Terminer.')
+                        self.status.set(f'Échec de capture ou sauvegarde · {saved}/{count} intégrée(s) au document Word. Réessayez avec Terminer.')
                         messagebox.showerror('Sauvegarde à vérifier', error + '\nLes PNG disponibles sont conservés dans :\n' + str(self.session.folder))
-                    self.counter.set(f'{count} capture(s)')
+                    self.counter.set(f'{count} étape(s)')
                 elif kind == 'finished':
                     self.remember()
                     self.active = self.finishing = False
+                    self.copy_btn.config(state='disabled')
+                    self.guidance.set('Votre guide est prêt. Ouvrez-le pour compléter les explications dans Word ou Writer.')
                     self._lock_fields(False)
                     self.status.set(f'Session terminée · {len(self.session.captures)} capture(s) sauvegardée(s)')
                     try:
@@ -577,14 +655,14 @@ class CaptureApp:
                     if self.hook_ok:
                         self.hook.enabled.set()
                     self.status.set('Dernière sauvegarde échouée · cliquez sur Terminer pour réessayer')
-                    messagebox.showerror('Document XHTML', payload + '\nPNG conservés :\n' + str(self.session.folder))
+                    messagebox.showerror('Document Word', payload + '\nPNG conservés :\n' + str(self.session.folder))
                     if close_requested and messagebox.askyesno('Fermer malgré l’erreur ?',
-                            'La dernière sauvegarde XHTML reste disponible. Les PNG seront conservés pour récupération manuelle. Fermer ?'):
+                            'La dernière sauvegarde DOCX reste disponible. Les PNG seront conservés pour récupération manuelle. Fermer ?'):
                         self._destroy()
                         return
         except queue.Empty:
             pass
-        self.root.after(40, self.process_events)
+        self.poll = self.root.after(40, self.process_events)
 
     def on_close(self):
         if self.initializing:
@@ -599,6 +677,7 @@ class CaptureApp:
         self._destroy()
 
     def _destroy(self):
+        self.root.after_cancel(self.poll)
         self.hook.stop()
         self.pool.shutdown(wait=False)
         self.root.destroy()
@@ -607,7 +686,7 @@ class CaptureApp:
 if __name__ == '__main__':
     try:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID.argtypes = [ctypes.c_wchar_p]
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('RauVolt.CapturesXHTML')
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('RauVolt.StepsShot')
     except (AttributeError, OSError):
         pass
     try:
@@ -623,7 +702,14 @@ if __name__ == '__main__':
             report = {'monitors': len(app.monitors), 'hook_installed': app.hook_ok,
                       'recent_slots': len(app.recent_rows), 'shortcut': label(app.shortcut),
                       'scrollbars': 2, 'tk': window.tk.call('info', 'patchlevel')}
-            report['ok'] = bool(app.monitors) and app.hook_ok
+            with tempfile.TemporaryDirectory(dir=Path(sys.argv[2]).resolve().parent) as folder:
+                from PIL import Image
+                png = Path(folder) / 'probe.png'
+                Image.new('RGB', (160, 90), '#11776b').save(png)
+                export_docx(Path(folder) / 'probe.docx', 'Guide de vérification',
+                            [(datetime.now().astimezone().isoformat(), png)])
+                report['docx_export'] = True
+            report['ok'] = bool(app.monitors) and app.hook_ok and report['docx_export']
             app._destroy()
         except Exception as exc:
             report.update(ok=False, error=str(exc))

@@ -1,61 +1,53 @@
-# CapturesXHTML 1.4.0
+# StepsShot 1.0
 
-Application Windows 10/11 x64 de capture d’un écran vers un XHTML autonome. Licence [MIT](LICENSE). Mainteneur : [RauVolt](https://github.com/RauVolt).
+StepsShot transforme des captures d’écran en un guide Word modifiable. Successeur de CapturesXHTML, sous licence MIT. Mainteneur : RauVolt.
 
-## Utilisation
+## Un parcours en cinq étapes
 
-1. Saisir le titre et sélectionner un écran.
-2. Cliquer sur **Choisir le fichier et démarrer**. Choisir le nom et le dossier du XHTML. Si un fichier existe, la boîte Windows demande confirmation de son remplacement.
-3. Un XHTML vide et valide est créé en arrière-plan avant l’activation de la session.
-4. Utiliser le raccourci affiché (**Impr. écran** par défaut). Chaque PNG est enregistré localement, puis le XHTML complet est réécrit en arrière-plan, vérifié et remplacé atomiquement. Le compteur indique les captures ; le statut indique leur sauvegarde effective.
-5. **Terminer** attend les captures en cours et effectue une dernière sauvegarde. Fermer une session active propose de sauvegarder avant de quitter.
+1. **Donnez un nom à votre guide** : ce nom devient le titre du document.
+2. **Choisissez l’écran** : sélectionnez le moniteur à capturer. Il peut être changé pendant la session.
+3. **Choisissez où enregistrer** : indiquez un fichier `.docx` et son dossier. Si ce fichier existe, un remplacement est confirmé avant le démarrage.
+4. **Démarrez puis capturez** avec Impr. écran, ou le raccourci configuré. Le fichier Word est créé avant la première capture, puis actualisé en arrière-plan après chaque capture.
+5. **Terminez et complétez** : cliquez sur Terminer, puis Ouvrir le document. Modifiez les titres et explications dans Word ou LibreOffice Writer, déplacez ou supprimez les images.
 
-Chaque ligne des documents récents dispose de son bouton **Ouvrir**, qui ouvre le répertoire du document correspondant. Aucun bouton global d’ouverture de dossier. Les cinq derniers titres et chemins absolus sont affichés et conservés localement dans `%LOCALAPPDATA%/CapturesXHTML/recent.json`. Un chemin déplacé ou supprimé reste dans l’historique et peut ne plus être accessible.
+Aucune licence Word et aucune installation de Python ne sont nécessaires pour capturer et générer le DOCX. Un logiciel capable de modifier les DOCX est nécessaire pour l’édition. Les captures sont des images : le texte à l’intérieur n’est pas converti par OCR.
 
-## Sauvegarde et récupération
+## Documents Word
 
-Les captures sont écrites dans `%LOCALAPPDATA%/CapturesXHTML/Temp/session-*`. Un manifeste `session.json` associe les PNG au document. Ces fichiers sont supprimés après une finalisation réussie. En cas d’échec, le dernier XHTML valide reste disponible ; **Terminer** permet de réessayer en intégrant tous les PNG disponibles. Après une interruption brutale, les PNG et le manifeste restent disponibles pour récupération manuelle ; aucune reprise automatique n’est implémentée.
+Chaque capture correspond à une étape avec titre éditable, date, image intégrée et paragraphe d’explication à compléter. Les images sont redimensionnées proportionnellement et ne dépendent pas de fichiers externes. Une étape commence sur une nouvelle page à partir de la deuxième capture. Le guide utilise des styles Word ordinaires, sans protection d’édition.
 
-Une capture n’est intégrée au document qu’après confirmation de sauvegarde dans le statut. Un arrêt pendant une capture peut perdre la capture en cours. La mise à jour réécrit tout le XHTML : le fonctionnement vise les sessions d’environ 50 captures ou moins, sans limite dure à 50. Le temps dépend du contenu, du disque et des dossiers réseau/synchronisés.
+Pendant la session, attendez la confirmation de sauvegarde avant d’ouvrir le document. Les modifications sont à faire après Terminer. Si le fichier a été modifié ou déplacé ailleurs, StepsShot refuse de l’écraser. Si Word le verrouille, les captures restent conservées ; fermez le document pour réessayer, ou utilisez **Enregistrer une copie** vers un autre `.docx`, lorsque les captures en attente sont terminées.
 
-## Installation, mise à jour, désinstallation
+Les PNG et un manifeste de session sont conservés dans `%LOCALAPPDATA%/StepsShot/Temp/session-*` jusqu’à finalisation réussie. Après une panne, la récupération est manuelle. Le dernier DOCX sauvegardé reste disponible ; la capture en cours peut ne pas avoir été intégrée. Chaque mise à jour réécrit le guide entier, ce qui convient aux sessions usuelles d’environ 50 captures.
 
-Un seul Setup, sans Python à installer pour l’utilisateur. Installation sans élévation dans `%LOCALAPPDATA%/Programs/CapturesXHTML`. L’identifiant d’installation est conservé depuis 1.2 pour permettre la mise à jour.
+## Raccourci et historique
 
-Si l’application est déjà installée pour ce compte, relancer le Setup propose **Mettre à jour ou réinstaller**, **Désinstaller CapturesXHTML** ou **Annuler**. Le choix de désinstallation lance le désinstalleur existant et arrête le Setup. En mode silencieux, le Setup met à jour sans afficher ce choix. La désinstallation reste également disponible dans les paramètres Windows. Documents, historique et données temporaires résiduelles sont conservés.
+Touche seule ou Ctrl / Alt / Maj + une touche ; le raccourci est réservé uniquement pendant la session. **Rétablir Impr. écran** restaure le raccourci initial. Les restrictions Windows et les autres hooks peuvent empêcher l’interception ; aucun contournement des écrans sécurisés. Les contenus protégés peuvent être noirs.
 
-## Interface
+Les cinq derniers fichiers et leurs chemins restent affichés, avec un bouton vers chaque dossier. Deux zones de défilement verticales sont disponibles. Configuration et historique sont stockés localement dans `%LOCALAPPDATA%/StepsShot`. Au premier lancement, l’historique et le raccourci CapturesXHTML sont copiés si disponibles ; les documents XHTML précédents ne sont pas convertis ni supprimés.
 
-Fond gris clair, cartes blanches, accent bleu, typographie Segoe UI, commandes principales regroupées et historique visible. Interface Tkinter/ttk personnalisée, sans dépendance graphique supplémentaire. Une barre de défilement verticale dessert toute la fenêtre ; une seconde dessert indépendamment les documents récents. La molette agit sur la zone survolée. Les chemins et titres longs reviennent à la ligne.
+## Installation et mise à jour
 
-## Raccourci et écran
+Un seul `StepsShot-1.0.0-Setup.exe`, pour Windows 10/11 x64, sans droits administrateur. Nouvelle installation dans `%LOCALAPPDATA%/Programs/StepsShot`. L’identité d’installation de CapturesXHTML est conservée pour qu’une mise à jour existante utilise son répertoire précédent et sa même entrée de désinstallation, sous le nouveau nom. L’ancien raccourci est remplacé par StepsShot. Documents, historique ancien et captures résiduelles ne sont pas supprimés.
 
-Le panneau Raccourci permet de choisir une touche seule ou **Ctrl / Alt / Maj + une touche**. Les touches proposées sont Impr. écran, F1 à F24, Pause, Arrêt défil., A à Z et 0 à 9. Le rappel indique toujours la combinaison active. **Retour config. initiale** rétablit Impr. écran uniquement ; il ne réinitialise pas les documents ou l’historique. Le choix est enregistré dans `%LOCALAPPDATA%/CapturesXHTML/settings.json` et s’applique immédiatement, y compris pendant une session.
+Lorsqu’une installation existe, le Setup propose mise à jour/réinstallation, désinstallation ou annulation. Aucune désinstallation du poste utilisateur n’est effectuée automatiquement pendant les tests.
 
-Pendant la session, le raccourci choisi est réservé à la capture et n’exécute plus sa fonction habituelle dans l’application active. Il est libéré hors session. Les combinaisons de trois touches ou avec la touche Windows ne sont pas proposées. Les raccourcis réservés par Windows peuvent rester indisponibles. Un appui prolongé ne déclenche qu’une capture. Si le hook clavier ne s’installe pas, le démarrage de session est désactivé et un message demande de redémarrer.
+## Sources et compilation
 
-La liste d’écrans reste modifiable pendant la session. La sélection est figée pour chaque capture lors de sa mise en attente ; changer ensuite d’écran ne modifie pas les demandes précédentes. Les écrans branchés ou retirés en cours de session nécessitent une nouvelle session et une actualisation.
+Le dépôt historique reste [RauVolt/CapturesXHTML](https://github.com/RauVolt/CapturesXHTML). Le produit et les fichiers distribués s’appellent désormais StepsShot 1.0. Les versions de paquet et de fichier sont 1.0.0.
 
-## Icône
-
-Icône originale géométrique sur le thème du cadrage : carré bleu, quatre angles blancs et centre cyan. Sources SVG et script de génération inclus, avec PNG et ICO multi-résolutions. L’icône est utilisée dans la fenêtre, l’exécutable, le raccourci Windows et le Setup.
-
-## Compilation
-
-Sur Windows x64 avec Python/Tkinter et Inno Setup 6 :
+Sur Windows avec Python 3.12 ou 3.13 x64 (incluant Tkinter) et Inno Setup 6 :
 
 ```powershell
 ./build_windows.ps1 -Python 'C:/chemin/python.exe' -ISCC 'C:/chemin/Inno Setup 6/ISCC.exe'
 ```
 
-Le script crée un environnement isolé, installe les dépendances fixées, exécute les tests et produit `installer/CapturesXHTML-1.4.0-Setup.exe`.
+Le script crée `.venv`, installe les dépendances, exécute les tests, génère l’icône, inclut le modèle DOCX et construit `installer/StepsShot-1.0.0-Setup.exe`. Internet est nécessaire pour les dépendances. Office n’est pas requis pour la compilation.
 
-[GitHub Actions](https://github.com/RauVolt/CapturesXHTML/actions/workflows/windows.yml) compile sur Windows avec Python 3.13, publie des artefacts et prépare une Release **brouillon** v1.4.0 sur `main`. Le lot contient Setup, sources, rapport et SHA256. Les pull requests ne peuvent pas publier de Release. Une Release déjà publiée n’est pas remplacée.
+GitHub Actions compile sous Windows avec Python 3.13 et prépare une Release **brouillon** `v1.0.0`, incluant Setup, sources, rapport et empreintes SHA256. Aucune publication automatique d’une Release déjà publiée. Le lancement manuel est disponible dans Actions. Voir [VERIFICATION.md](VERIFICATION.md).
 
-## Confidentialité et limites
+## Confidentialité et licence
 
-Aucune télémétrie et aucun envoi réseau par l’application. Les documents contiennent les images capturées et leurs dates ; leur partage relève de l’utilisateur. Un dossier réseau ou synchronisé choisi peut naturellement être traité par le service correspondant.
+Aucune télémétrie ni transfert de captures par StepsShot. Les documents et chemins choisis peuvent se trouver sur un dossier réseau ou synchronisé, qui relève du service choisi par l’utilisateur. Les documents contiennent leurs captures et dates : vérifiez leur contenu avant partage.
 
-Le hook Impr. écran dépend des restrictions Windows et n’intercepte pas tous les contextes protégés. Le démarrage de session est bloqué si le hook ne s’installe pas. Les captures en attente saisissent l’écran au moment de leur traitement. La validation confirme un XML bien formé, pas une conformité complète DTD/XSD ni un affichage universel. Voir [VERIFICATION.md](VERIFICATION.md).
-
-Les bibliothèques tierces conservent leurs licences. L’application et le Setup restent **non signés** ; aucun service SignPath actif. Voir [SIGNPATH.md](SIGNPATH.md).
+Code du projet sous [MIT](LICENSE), bibliothèques tierces sous leurs licences respectives. Application et installateur **non signés**. SignPath n’est pas activé ; l’acceptation éventuelle reste indépendante du choix de licence.

@@ -1,47 +1,56 @@
-import base64
 import tempfile
 import unittest
 from pathlib import Path
-from xml.etree import ElementTree as ET
+from zipfile import ZipFile
+from unittest.mock import patch
 from PIL import Image
-from app import export_xhtml, valid_xml_file
+from docx import Document
+from documents import export_docx, validate_docx
 
 
 class ExportTests(unittest.TestCase):
-    def test_roundtrip_unicode_and_embedded_png(self):
+    def test_editable_roundtrip_unicode_images_and_aspect_ratio(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            png, target = root / 'capture.png', root / 'résultat.xhtml'
-            Image.new('RGB', (160, 90), 'blue').save(png)
-            title = 'Écran <test> & "texte"'
-            export_xhtml(target, title, [('2026-11-13T12:00:00+01:00', png)])
-            valid_xml_file(target)
-            doc = ET.parse(target)
-            ns = {'x': 'http://www.w3.org/1999/xhtml'}
-            self.assertEqual(doc.find('x:head/x:title', ns).text, title)
-            image = doc.find('.//x:img', ns)
-            self.assertEqual(base64.b64decode(image.attrib['src'].split(',', 1)[1]), png.read_bytes())
+            png, target = root / 'image.png', root / 'résultat.docx'
+            Image.new('RGB', (1920,1080), '#76e0c4').save(png)
+            title = 'Écran <test> & texte'
+            export_docx(target,title,[('2026-11-16T20:00:00+01:00',png)])
+            validate_docx(target)
+            document = Document(target)
+            self.assertEqual(document.paragraphs[0].text,title)
+            self.assertEqual(len(document.inline_shapes),1)
+            shape = document.inline_shapes[0]
+            self.assertAlmostEqual(shape.width/shape.height,1920/1080,places=4)
+            with ZipFile(target) as archive:
+                images = [name for name in archive.namelist() if name.startswith('word/media/')]
+                self.assertEqual(archive.read(images[0]),png.read_bytes())
+            document.add_paragraph('Explication ajoutée dans un éditeur Word')
+            document.save(target)
+            self.assertEqual(Document(target).paragraphs[-1].text,'Explication ajoutée dans un éditeur Word')
 
-    def test_failed_export_preserves_destination_and_capture(self):
+    def test_failed_export_preserves_existing_file_and_removes_partial(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            target, png = root / 'existing.xhtml', root / 'capture.png'
-            target.write_text('original', encoding='utf-8')
-            Image.new('RGB', (2, 2)).save(png)
+            target = root/'existing.docx'
+            target.write_bytes(b'original')
             with self.assertRaises(FileNotFoundError):
-                export_xhtml(target, 'test', [('2026-11-13T12:00:00', png),
-                                            ('2026-11-13T12:00:01', root / 'missing.png')])
-            self.assertEqual(target.read_text(), 'original')
-            self.assertTrue(png.exists())
-            self.assertEqual(list(root.glob('*.tmp')), [])
+                export_docx(target,'Test',[('2026-11-16T20:00:00',root/'missing.png')])
+            self.assertEqual(target.read_bytes(),b'original')
+            self.assertEqual(list(root.glob('.stepsshot-*')),[])
 
-    def test_invalid_xml_rejected(self):
+    def test_locked_target_preserves_original(self):
         with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / 'bad.xhtml'
-            path.write_text('<html><body></html>')
+            target = Path(folder)/'locked.docx'
+            target.write_bytes(b'original')
+            with patch('documents.os.replace', side_effect=PermissionError('Word has locked the file')):
+                with self.assertRaises(PermissionError):
+                    export_docx(target,'Test',[])
+            self.assertEqual(target.read_bytes(),b'original')
+
+    def test_corrupt_docx_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target=Path(folder)/'bad.docx'
+            target.write_bytes(b'not a Word file')
             with self.assertRaises(Exception):
-                valid_xml_file(path)
-
-
-if __name__ == '__main__':
-    unittest.main()
+                validate_docx(target)

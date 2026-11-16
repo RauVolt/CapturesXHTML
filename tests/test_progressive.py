@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from xml.etree import ElementTree as ET
+from docx import Document
 from PIL import Image
 from app import ProgressiveSession, History
 
@@ -13,14 +13,13 @@ class ProgressiveTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.target = self.root / 'document.xhtml'
+        self.target = self.root / 'document.docx'
 
     def session(self):
         return ProgressiveSession(self.target, 'Titre & écran', (0, 0, 100, 100), self.root / 'Temp')
 
     def images(self):
-        doc = ET.parse(self.target)
-        return len(doc.findall('.//{http://www.w3.org/1999/xhtml}img'))
+        return len(Document(self.target).inline_shapes)
 
     @patch('app.ImageGrab.grab', side_effect=lambda **kw: Image.new('RGB', (100, 100)))
     def test_initial_document_then_each_capture_is_saved(self, grab):
@@ -40,7 +39,7 @@ class ProgressiveTests(unittest.TestCase):
         session = self.session()
         session.capture()
         previous = self.target.read_bytes()
-        with patch('app.export_xhtml', side_effect=OSError('disk unavailable')):
+        with patch('app.export_docx', side_effect=OSError('disk unavailable')):
             with self.assertRaises(OSError):
                 session.capture()
         self.assertEqual(previous, self.target.read_bytes())
@@ -51,7 +50,7 @@ class ProgressiveTests(unittest.TestCase):
 
     def test_failed_initialization_does_not_replace_existing_document(self):
         self.target.write_text('previous')
-        with patch('app.export_xhtml', side_effect=OSError('read only')):
+        with patch('app.export_docx', side_effect=OSError('read only')):
             with self.assertRaises(OSError):
                 self.session()
         self.assertEqual(self.target.read_text(), 'previous')
@@ -61,8 +60,8 @@ class ProgressiveTests(unittest.TestCase):
         path = self.root / 'recent.json'
         history = History(path)
         for i in range(7):
-            history.record(f'Doc {i}', self.root / f'{i}.xhtml')
-        history.record('Updated', self.root / '4.xhtml')
+            history.record(f'Doc {i}', self.root / f'{i}.docx')
+        history.record('Updated', self.root / '4.docx')
         loaded = History(path)
         self.assertEqual(len(loaded.items), 5)
         self.assertEqual(loaded.items[0]['title'], 'Updated')
@@ -73,3 +72,13 @@ class ProgressiveTests(unittest.TestCase):
         path = self.root / 'recent.json'
         path.write_text('{bad json')
         self.assertEqual(History(path).items, [])
+
+    def test_external_edits_are_not_overwritten(self):
+        session = self.session()
+        edited = Document(self.target)
+        edited.add_paragraph('Modification externe à préserver')
+        edited.save(self.target)
+        saved = self.target.read_bytes()
+        with self.assertRaises(OSError):
+            session.save()
+        self.assertEqual(self.target.read_bytes(), saved)

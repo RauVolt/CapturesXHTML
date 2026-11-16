@@ -44,13 +44,13 @@ class InterfaceTests(unittest.TestCase):
                 for i in range(5):
                     directory = Path(folder) / str(i)
                     directory.mkdir()
-                    app.history.record(f'Doc {i}', directory / 'doc.xhtml')
+                    app.history.record(f'Doc {i}', directory / 'doc.docx')
                 app.refresh_history()
                 for i, (_, _, button) in enumerate(app.recent_rows):
                     with patch('app.os.startfile') as opener:
                         button.invoke()
                         opener.assert_called_once_with(str(Path(app.history.items[i]['path']).parent))
-                target = Path(folder) / 'session.xhtml'
+                target = Path(folder) / 'session.docx'
                 app.document.set('Test session')
                 app.combo.current(0)
                 with patch('app.filedialog.asksaveasfilename', return_value=str(target)):

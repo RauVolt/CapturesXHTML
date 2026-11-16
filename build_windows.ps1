@@ -19,9 +19,9 @@ Check-Exit 'Dependances'
 Check-Exit 'Tests'
 & $BuildPython packaging/make_icon.py
 Check-Exit 'Icone'
-& $BuildPython -m PyInstaller --noconfirm --clean --onedir --windowed --noupx --icon assets/capture.ico --add-data "assets;assets" --version-file packaging/version_info.txt --name CapturesXHTML app.py
+& $BuildPython -m PyInstaller --noconfirm --clean --onedir --windowed --noupx --collect-data docx --icon assets/capture.ico --add-data "assets;assets" --version-file packaging/version_info.txt --name StepsShot app.py
 Check-Exit 'PyInstaller'
-Copy-Item LICENSE dist\CapturesXHTML\LICENSE.txt
-& $ISCC packaging\CapturesXHTML.iss
+Copy-Item LICENSE dist\StepsShot\LICENSE.txt
+& $ISCC packaging\StepsShot.iss
 Check-Exit 'Inno Setup'
-Get-FileHash installer\CapturesXHTML-1.4.0-Setup.exe -Algorithm SHA256
+Get-FileHash installer\StepsShot-1.0.0-Setup.exe -Algorithm SHA256

@@ -1,13 +1,18 @@
-# Vérification locale — CapturesXHTML 1.4.0 — 13 novembre 2026
+# Vérification StepsShot 1.0 — 16 novembre 2026
 
-- 15 tests automatisés réussis : les 8 tests de sauvegarde/export/historique existants, 6 tests du raccourci et 1 scénario d’interface.
-- Raccourci : Impr. écran, relâchement seul, maintien de touche sans répétition, touche non configurée, désactivation hors session, modificateur incorrect, relâchement du modificateur avant la touche, changement de configuration pendant un appui et normalisation Ctrl gauche/droite. Les événements sont simulés au niveau de la logique de correspondance, sans injection clavier.
-- Interface : deux barres verticales, absence du bouton Capturer, changement et restauration de raccourci, chaque bouton Ouvrir associé au bon dossier par simulation de l’appel Windows, deux captures avec écrans simulés aux coordonnées distinctes (dont négatives), changement ultérieur de sélection sans modification des captures déjà demandées et finalisation du XHTML.
-- Contrôle visuel local de la fenêtre 1.4 : nouvelle icône, rappel et configuration du raccourci, bouton de réinitialisation, défilement global effectif.
-- Le contrôle de démarrage packagé et les journaux PyInstaller/Inno Setup sont fournis dans le lot de vérification local. Le lot GitHub contient les journaux du runner et son environnement.
+## Vérifié localement
 
-## Limites des vérifications
+- 17 tests automatisés réussis sous Python 3.12 : génération/relecture DOCX avec titre Unicode et PNG intégré inchangé, dimensions proportionnelles, ajout de texte et réenregistrement, rejet d’archive corrompue, maintien de l’ancien fichier en cas de panne ou verrou simulé, création vide et sauvegardes progressives, préservation des modifications externes, historique limité à cinq documents, raccourcis et scénario d’interface avec changement d’écran simulé.
+- Nouvelle interface ouverte et inspectée visuellement sous Windows 11 : marque StepsShot, cinq étapes, nouvelle palette, champs et commandes de création.
+- DOCX d’essai produit avec deux captures synthétiques et relu sans Office. Aucun fichier utilisateur utilisé pour ce test.
+- Contrôle de démarrage du binaire packagé : Tk chargé, moniteur détecté, hook installé, création et validation d’un DOCX incluant une image ; résultat JSON et journaux livrés.
+- Compilation PyInstaller et Inno Setup effectuée sous Windows. Le rapport de la CI indique séparément le commit et l’environnement du runner.
 
-Les tests d’interface simulent les écrans et les captures. Ils ne prouvent pas le bon fonctionnement de tous les claviers, des raccourcis réservés, du multi-écran physique, des DPI mixtes ou des contenus protégés. À vérifier manuellement : Windows 10, raccourcis physiques, défilement sur pavé tactile, cinq chemins très longs, modification d’écran réel et installation/mise à jour/désinstallation. Aucune désinstallation de l’application utilisateur existante n’a été effectuée.
+## Non vérifié
 
-La validation XHTML confirme un XML bien formé, pas une conformité DTD/XSD complète. Les sauvegardes progressives et fichiers temporaires de récupération sont conservés depuis 1.3. L’application ne transmet aucune capture au réseau. Les tests ne sont pas une garantie contre une panne matérielle ou une politique de sécurité d’entreprise.
+- Rendu visuel du DOCX dans Word/LibreOffice : le renderer ne dispose pas de LibreOffice et l’utilisateur a demandé de poursuivre sans étape Word. Les tests sont structurels et ne constituent pas une vérification visuelle dans ces logiciels.
+- Installation réelle, migration depuis CapturesXHTML, remplacement de raccourci et désinstallation sur le profil de l’utilisateur. Le script est compilé ; aucune installation existante n’a été désinstallée pendant les vérifications.
+- Windows 10, raccourcis physiques sur tous les claviers, configurations multi-écrans/DPI mixtes et contenus protégés.
+- Pannes matérielles réelles et stockage réseau. Les conflits/verrous sont simulés dans les tests ; les captures temporaires permettent une récupération manuelle.
+
+La mise en page utilise des styles Word ordinaires, des images intégrées et une taille proportionnelle plafonnée. Les titres et paragraphes sont éditables ; le contenu pixel des captures ne l’est pas. L’installateur et le programme ne sont pas signés.
