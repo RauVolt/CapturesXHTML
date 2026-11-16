@@ -4,7 +4,7 @@
 [Setup]
 AppId={{4C05EE44-EE4F-40C3-8686-294F94E78257}
 AppName=StepsShot
-AppVersion=1.0.0
+AppVersion=1.0.1
 DefaultDirName={localappdata}\Programs\StepsShot
 DefaultGroupName=StepsShot
 PrivilegesRequired=lowest
@@ -13,7 +13,7 @@ DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 MinVersion=10.0
 OutputDir=..\installer
-OutputBaseFilename=StepsShot-1.0.0-Setup
+OutputBaseFilename=StepsShot-1.0.1-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -33,12 +33,25 @@ Type: files; Name: "{app}\CapturesXHTML.exe"
 Filename: "{app}\StepsShot.exe"; Description: "Ouvrir StepsShot"; Flags: nowait postinstall skipifsilent
 
 [Code]
+function MaintenanceChoice(): Integer;
+begin
+  Result := TaskDialogMsgBox('StepsShot est déjà installé',
+    'Choisissez une action. Vos documents et votre historique seront conservés.',
+    mbConfirmation, MB_YESNOCANCEL, ['Mettre à jour ou réinstaller',
+    'Désinstaller StepsShot'], 0);
+end;
+
 function InitializeSetup(): Boolean;
 var
   InstallPath, Uninstaller: String;
   Choice, ResultCode: Integer;
 begin
   Result := True;
+#ifdef MaintenanceDialogTest
+  Choice := MaintenanceChoice();
+  Result := False;
+  Exit;
+#endif
   { Silent installations always update; never silently uninstall. }
   if WizardSilent then Exit;
   if not RegQueryStringValue(HKCU,
@@ -46,10 +59,7 @@ begin
     'InstallLocation', InstallPath) then Exit;
   Uninstaller := AddBackslash(InstallPath) + 'unins000.exe';
   if not FileExists(Uninstaller) then Exit;
-  Choice := TaskDialogMsgBox('StepsShot est déjà installé',
-    'Choisissez une action. Vos documents et votre historique seront conservés.',
-    mbConfirmation, MB_YESNOCANCEL, ['Mettre à jour ou réinstaller',
-    'Désinstaller StepsShot', 'Annuler'], 0);
+  Choice := MaintenanceChoice();
   if Choice = IDYES then Exit;
   Result := False;
   if Choice = IDNO then begin

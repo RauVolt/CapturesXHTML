@@ -24,4 +24,4 @@ Check-Exit 'PyInstaller'
 Copy-Item LICENSE dist\StepsShot\LICENSE.txt
 & $ISCC packaging\StepsShot.iss
 Check-Exit 'Inno Setup'
-Get-FileHash installer\StepsShot-1.0.0-Setup.exe -Algorithm SHA256
+Get-FileHash installer\StepsShot-1.0.1-Setup.exe -Algorithm SHA256

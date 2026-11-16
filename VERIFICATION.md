@@ -16,3 +16,7 @@
 - Pannes matérielles réelles et stockage réseau. Les conflits/verrous sont simulés dans les tests ; les captures temporaires permettent une récupération manuelle.
 
 La mise en page utilise des styles Word ordinaires, des images intégrées et une taille proportionnelle plafonnée. Les titres et paragraphes sont éditables ; le contenu pixel des captures ne l’est pas. L’installateur et le programme ne sont pas signés.
+
+## Correctif installateur 1.0.1
+
+Le même dialogue de maintenance a été exécuté dans un Setup de test compilé avec `MaintenanceDialogTest`, qui affiche le dialogue puis s’arrête sans installer ni désinstaller. Les trois boutons Mettre à jour ou réinstaller, Désinstaller StepsShot et Annuler sont présents ; Annuler ferme le programme sans erreur. Le Setup de production est compilé séparément sans ce symbole. Le démarrage du Setup de production a aussi été vérifié puis annulé avant installation. La mise à jour et la désinstallation réelles du profil utilisateur restent non exécutées.
