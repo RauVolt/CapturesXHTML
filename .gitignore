@@ -7,3 +7,8 @@ installer/
 *.log
 verification/
 release-assets/
+*.pfx
+*.p12
+*.key
+modify.py
+StepsShot-signing.cer

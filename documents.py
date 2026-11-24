@@ -7,6 +7,9 @@ from zipfile import ZipFile
 from xml.etree import ElementTree as ET
 
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.enum.text import WD_TAB_ALIGNMENT
 from docx.shared import Inches, Pt, RGBColor
 from PIL import Image
 
@@ -40,6 +43,22 @@ def export_docx(path, title, captures):
         doc.styles['Title'].font.size = Pt(28)
         doc.styles['Heading 1'].font.size = Pt(18)
         doc.styles['Title'].paragraph_format.keep_with_next = True
+        header = section.header.paragraphs[0]
+        header.add_run(target.stem).font.size = Pt(9)
+        footer = section.footer.paragraphs[0]
+        footer.paragraph_format.tab_stops.add_tab_stop(
+            section.page_width - section.left_margin - section.right_margin,
+            WD_TAB_ALIGNMENT.RIGHT)
+        footer.add_run(datetime.now().strftime('%d/%m/%Y') + '\t')
+        for instruction, suffix in [('PAGE', ' / '), ('NUMPAGES', '')]:
+            field = OxmlElement('w:fldSimple')
+            field.set(qn('w:instr'), instruction)
+            field.set(qn('w:dirty'), 'true')
+            footer._p.append(field)
+            footer.add_run(suffix)
+        update = OxmlElement('w:updateFields')
+        update.set(qn('w:val'), 'true')
+        doc.settings.element.append(update)
         doc.core_properties.title = title
         doc.core_properties.author = ''
         doc.core_properties.last_modified_by = ''

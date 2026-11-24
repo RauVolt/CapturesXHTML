@@ -1,4 +1,4 @@
-# StepsShot 1.0.2
+# StepsShot 1.0.3
 
 StepsShot transforme des captures d’écran en un guide Word modifiable. Successeur de CapturesXHTML, sous licence MIT. Mainteneur : RauVolt.
 
@@ -28,13 +28,13 @@ Les cinq derniers fichiers et leurs chemins restent affichés, avec un bouton ve
 
 ## Installation et mise à jour
 
-Un seul `StepsShot-1.0.2-Setup.exe`, pour Windows 10/11 x64, sans droits administrateur. Nouvelle installation dans `%LOCALAPPDATA%/Programs/StepsShot`. L’identité d’installation de CapturesXHTML est conservée pour qu’une mise à jour existante utilise son répertoire précédent et sa même entrée de désinstallation, sous le nouveau nom. L’ancien raccourci est remplacé par StepsShot. Documents, historique ancien et captures résiduelles ne sont pas supprimés.
+Un seul `StepsShot-1.0.3-Setup.exe`, pour Windows 10/11 x64, sans droits administrateur. Nouvelle installation dans `%LOCALAPPDATA%/Programs/StepsShot`. L’identité d’installation de CapturesXHTML est conservée pour qu’une mise à jour existante utilise son répertoire précédent et sa même entrée de désinstallation, sous le nouveau nom. L’ancien raccourci est remplacé par StepsShot. Documents, historique ancien et captures résiduelles ne sont pas supprimés.
 
 Lorsqu’une installation existe, le Setup propose mise à jour/réinstallation, désinstallation ou annulation. Aucune désinstallation du poste utilisateur n’est effectuée automatiquement pendant les tests.
 
 ## Sources et compilation
 
-Le dépôt historique reste [RauVolt/CapturesXHTML](https://github.com/RauVolt/CapturesXHTML). Le produit et les fichiers distribués s’appellent désormais StepsShot 1.0. Les versions de paquet et de fichier sont 1.0.0.
+Le dépôt historique reste [RauVolt/CapturesXHTML](https://github.com/RauVolt/CapturesXHTML). Le produit et les fichiers distribués s’appellent désormais StepsShot 1.0. Les versions de paquet et de fichier sont 1.0.3.
 
 Sur Windows avec Python 3.12 ou 3.13 x64 (incluant Tkinter) et Inno Setup 6 :
 
@@ -42,15 +42,15 @@ Sur Windows avec Python 3.12 ou 3.13 x64 (incluant Tkinter) et Inno Setup 6 :
 ./build_windows.ps1 -Python 'C:/chemin/python.exe' -ISCC 'C:/chemin/Inno Setup 6/ISCC.exe'
 ```
 
-Le script crée `.venv`, installe les dépendances, exécute les tests, génère l’icône, inclut le modèle DOCX et construit `installer/StepsShot-1.0.2-Setup.exe`. Internet est nécessaire pour les dépendances. Office n’est pas requis pour la compilation.
+Le script crée `.venv`, installe les dépendances, exécute les tests, génère l’icône, inclut le modèle DOCX et construit `installer/StepsShot-1.0.3-Setup.exe`. Internet est nécessaire pour les dépendances. Office n’est pas requis pour la compilation.
 
-GitHub Actions compile sous Windows avec Python 3.13 et prépare une Release **brouillon** `v1.0.2`, incluant Setup, sources, rapport et empreintes SHA256. Aucune publication automatique d’une Release déjà publiée. Le lancement manuel est disponible dans Actions. Voir [VERIFICATION.md](VERIFICATION.md).
+GitHub Actions compile sous Windows avec Python 3.13 et prépare une Release **brouillon** `v1.0.3`, incluant Setup, sources, rapport et empreintes SHA256. Aucune publication automatique d’une Release déjà publiée. Le lancement manuel est disponible dans Actions. Voir [VERIFICATION.md](VERIFICATION.md).
 
 ## Confidentialité et licence
 
 Aucune télémétrie ni transfert de captures par StepsShot. Les documents et chemins choisis peuvent se trouver sur un dossier réseau ou synchronisé, qui relève du service choisi par l’utilisateur. Les documents contiennent leurs captures et dates : vérifiez leur contenu avant partage.
 
-Code du projet sous [MIT](LICENSE), bibliothèques tierces sous leurs licences respectives. Application et installateur **non signés**. SignPath n’est pas activé ; l’acceptation éventuelle reste indépendante du choix de licence.
+Code du projet sous [MIT](LICENSE), bibliothèques tierces sous leurs licences respectives. Application, installateur et désinstalleur **autosignés**, sans confiance Windows automatique. SignPath n’est pas activé ; l’acceptation éventuelle reste indépendante du choix de licence.
 
 ## Correctif installateur 1.0.1
 
@@ -59,3 +59,25 @@ Corrige l’erreur `TaskDialogMsgBox: Invalid ButtonLabels` lors de la détectio
 ## Curseur visible depuis 1.0.2
 
 Le curseur Windows visible est intégré au PNG et donc au document Word. Sa forme et sa position sont relevées juste avant la capture, avec prise en compte du point actif du curseur et de l’origine du moniteur. Il est omis si Windows le masque ou si son point actif se trouve sur un autre écran. Les curseurs flèche, texte, transparents et monochromes sont dessinés par Windows sur les pixels de l’image. La capture et le curseur reflètent le moment de traitement par le worker, pas nécessairement l’appui initial si des demandes sont en attente. Les coordonnées utilisent le contexte DPI de l’application ; les configurations physiques à DPI mixtes restent à vérifier.
+
+## Intégrité et autosignature depuis la version 1.0.3
+
+Le titre en en-tête est le nom du fichier sans extension lors de la génération. Le pied de page contient la date de sauvegarde à gauche et les champs natifs PAGE / NUMPAGES à droite. Word ou Writer calculent la pagination à l’ouverture et lors de la mise à jour des champs. Renommer un DOCX après la session ne réécrit pas son en-tête.
+
+Le programme compilé vérifie au démarrage un inventaire SHA-256 signé RSA 3072 / SHA-256 avec une clé publique intégrée au programme. Un fichier absent, modifié ou ajouté dans le dossier applicatif bloque le démarrage. Les seuls fichiers exclus sont l’inventaire, sa signature et les trois fichiers de désinstallation Inno `unins000.exe`, `.dat`, `.msg`. Les documents et paramètres utilisateur sont en dehors de ce dossier. Le désinstalleur est signé Authenticode mais son hash ne fait pas partie de l’inventaire.
+
+L’EXE, le Setup et le désinstalleur sont autosignés. Aucune autorité racine ni aucun éditeur approuvé ne sont ajoutés à Windows. Windows peut afficher un éditeur non approuvé ou SmartScreen : un certificat autosigné ne constitue pas une identité vérifiée par un tiers. Le certificat a une durée de trois ans, sans service d’horodatage. La clé privée est non exportable dans le magasin personnel Windows du compte qui compile. Le fichier `.cer` contient uniquement le certificat public ; ne distribuez jamais de PFX ou de clé privée.
+
+Pour conserver la même identité entre versions :
+
+```powershell
+./packaging/new_signing_certificate.ps1
+# Conserver le thumbprint affiché, puis :
+./build_windows.ps1 -Python python -ISCC 'C:/chemin/ISCC.exe' -SigningThumbprint VOTRE_EMPREINTE
+```
+
+Sans `-SigningThumbprint`, le build crée une nouvelle identité autosignée. En CI GitHub, cette identité est éphémère et différente de celle des builds locaux : les deux ne doivent pas être considérées comme le même éditeur. Aucune clé privée locale n’est envoyée à GitHub. La clé publique intégrée est régénérée avant chaque compilation à partir du certificat choisi.
+
+Cette vérification détecte les altérations ; une personne capable de remplacer l’exécutable peut aussi modifier ou supprimer le contrôle. Python et certaines bibliothèques sont déjà chargés avant celui-ci. Pour imposer une interdiction par Windows, il faut une politique de contrôle des applications administrée et une chaîne de confiance adaptée. Aucun contrôle local ne rend un logiciel impossible à modifier.
+
+Pour mettre à jour, le Setup remplace le répertoire applicatif `_internal` afin d’éviter les anciennes bibliothèques résiduelles. Ne stockez pas de documents dans ce répertoire technique. Pour réparer une altération, utilisez votre installateur de confiance ; il n’existe pas de bouton de contournement du contrôle.

@@ -1,26 +1,21 @@
-# Vérification StepsShot 1.0 — 16 novembre 2026
+# Vérification StepsShot 1.0.3 — 24 novembre 2026
 
-## Vérifié localement
+## Résultats locaux
 
-- 17 tests automatisés réussis sous Python 3.12 : génération/relecture DOCX avec titre Unicode et PNG intégré inchangé, dimensions proportionnelles, ajout de texte et réenregistrement, rejet d’archive corrompue, maintien de l’ancien fichier en cas de panne ou verrou simulé, création vide et sauvegardes progressives, préservation des modifications externes, historique limité à cinq documents, raccourcis et scénario d’interface avec changement d’écran simulé.
-- Nouvelle interface ouverte et inspectée visuellement sous Windows 11 : marque StepsShot, cinq étapes, nouvelle palette, champs et commandes de création.
-- DOCX d’essai produit avec deux captures synthétiques et relu sans Office. Aucun fichier utilisateur utilisé pour ce test.
-- Contrôle de démarrage du binaire packagé : Tk chargé, moniteur détecté, hook installé, création et validation d’un DOCX incluant une image ; résultat JSON et journaux livrés.
-- Compilation PyInstaller et Inno Setup effectuée sous Windows. Le rapport de la CI indique séparément le commit et l’environnement du runner.
+- Compilation réelle sous Windows 11 x64, Python 3.12.14, PyInstaller 6.22.3 et Inno Setup 6.4.3.
+- 30 tests réussis : captures et curseur natif, raccourcis, interface, choix d’écran, sauvegarde progressive, conflits externes, historique, export DOCX et nouveaux contrôles d’intégrité.
+- Vérification structurelle DOCX : en-tête égal au nom du fichier sans extension, date JJ/MM/AAAA, champs natifs PAGE et NUMPAGES et tabulation droite sur la largeur utile.
+- Programme compilé : un moniteur détecté, hook installé, Tk 8.6.12, pipeline de capture avec curseur et export DOCX réussis, dans un profil de test isolé.
+- Inventaire signé du bundle intact accepté. Sur une copie isolée, modification du programme, d’un fichier de données, de l’inventaire ou ajout d’une DLL : refus avec code 2. Après restauration : code 0.
+- Signatures Authenticode présentes sur EXE, Setup et désinstalleur généré par Inno. Empreinte du certificat local : `9A161C00509DFDAA6A0F80AAFDA989CE0171BAC8` ; CN=RauVolt StepsShot ; expiration 24/11/2029.
+- Windows retourne UnknownError avec le motif explicite « certificat racine non approuvé » pour le fichier intact autosigné. Sur une copie dont un octet du stub EXE est modifié, Windows retourne HashMismatch. Aucune autorité de confiance n’a été installée.
+- Clé privée non exportable dans le magasin personnel Windows. Aucun PFX ni clé privée dans les livrables. Certificat public livré séparément. Pas d’horodatage.
 
-## Non vérifié
+## Limites de vérification
 
-- Rendu visuel du DOCX dans Word/LibreOffice : le renderer ne dispose pas de LibreOffice et l’utilisateur a demandé de poursuivre sans étape Word. Les tests sont structurels et ne constituent pas une vérification visuelle dans ces logiciels.
-- Installation réelle, migration depuis CapturesXHTML, remplacement de raccourci et désinstallation sur le profil de l’utilisateur. Le script est compilé ; aucune installation existante n’a été désinstallée pendant les vérifications.
-- Windows 10, raccourcis physiques sur tous les claviers, configurations multi-écrans/DPI mixtes et contenus protégés.
-- Pannes matérielles réelles et stockage réseau. Les conflits/verrous sont simulés dans les tests ; les captures temporaires permettent une récupération manuelle.
-
-La mise en page utilise des styles Word ordinaires, des images intégrées et une taille proportionnelle plafonnée. Les titres et paragraphes sont éditables ; le contenu pixel des captures ne l’est pas. L’installateur et le programme ne sont pas signés.
-
-## Correctif installateur 1.0.1
-
-Le même dialogue de maintenance a été exécuté dans un Setup de test compilé avec `MaintenanceDialogTest`, qui affiche le dialogue puis s’arrête sans installer ni désinstaller. Les trois boutons Mettre à jour ou réinstaller, Désinstaller StepsShot et Annuler sont présents ; Annuler ferme le programme sans erreur. Le Setup de production est compilé séparément sans ce symbole. Le démarrage du Setup de production a aussi été vérifié puis annulé avant installation. La mise à jour et la désinstallation réelles du profil utilisateur restent non exécutées.
-
-## Version 1.0.2
-
-23 tests réussis, dont six nouveaux tests du curseur : géométrie des moniteurs à coordonnées négatives, omission hors écran, point actif et bord supérieur/gauche, curseur masqué, dessin natif des curseurs Windows flèche et texte sur fond clair/sombre, rognage au bord de l’image. Ces essais utilisent des pixels synthétiques sans déplacer le pointeur utilisateur. Le contrôle du binaire packagé exerce la récupération du curseur, la capture sur pixels de test et l’export DOCX. Les écrans physiques à DPI mixtes et les curseurs animés restent à vérifier ; aucune installation existante n’a été modifiée pendant les tests.
+- Aucun rendu visuel du DOCX dans Word ou Writer : poursuite sans Word à la demande de l’utilisateur. Les champs de pagination sont calculés par le logiciel bureautique ; le total affiché après ouverture reste à vérifier dans celui-ci.
+- Aucune installation, mise à jour ou désinstallation de l’application existante sur le profil utilisateur. Le Setup et le désinstalleur sont compilés et signés ; leur installation réelle reste à tester.
+- Pas de poste Windows 10, de DPI mixtes ni de test exhaustif des raccourcis physiques.
+- Ce contrôle s’effectue dans l’application, après chargement du runtime ; il peut être supprimé en modifiant le programme. Il ne remplace pas une politique de contrôle imposée par Windows.
+- Les fichiers de désinstallation Inno sont exclus de l’inventaire applicatif ; le désinstalleur bénéficie de sa propre signature Authenticode.
+- La CI recrée sa propre identité autosignée éphémère à chaque build. Son certificat n’est pas celui du build local. Le rapport CI donne son commit et son environnement ; les essais locaux ne constituent pas un test du binaire CI.

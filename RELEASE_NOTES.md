@@ -1,10 +1,10 @@
-StepsShot 1.0.2 — curseur visible dans les captures
+# StepsShot 1.0.3
 
-- Le pointeur Windows est intégré aux captures PNG et aux images du document Word.
-- Position corrigée selon l’origine de l’écran et le point actif du curseur ; formes et transparence dessinées par Windows.
-- Le curseur est omis lorsqu’il est masqué ou placé sur un autre écran. Au bord du moniteur, le dessin est rogné aux limites de la capture.
-- Correctif du dialogue de maintenance 1.0.1 conservé.
+- En-tête DOCX : nom du fichier sans extension.
+- Pied de page : date JJ/MM/AAAA à gauche, champs PAGE / NUMPAGES à droite.
+- Contrôle d’intégrité SHA-256 de l’application compilée et de ses bibliothèques, avec inventaire signé RSA et clé publique intégrée.
+- Blocage du lancement si les fichiers contrôlés ont été modifiés, supprimés ou ajoutés.
+- Autosignature Authenticode de l’application, de l’installateur et du désinstalleur. Certificat autosigné : non approuvé automatiquement par Windows, sans suppression garantie de SmartScreen.
+- Conservation des fonctions de capture avec curseur, sauvegarde progressive, raccourci personnalisable, écran modifiable et historique.
 
-23 tests automatisés réussis localement : export Word, sauvegarde progressive, raccourcis, historique, changement d’écran simulé et six tests du curseur, dont le dessin natif flèche/texte sur fonds clair et sombre. Les configurations physiques à DPI mixtes et les curseurs animés ne sont pas entièrement vérifiés. La position correspond au moment de capture dans le worker.
-
-Installateur Windows x64 par utilisateur, non signé. Sources MIT, rapport et SHA256SUMS.txt joints. La Release reste en brouillon.
+Le build CI utilise un certificat autosigné éphémère propre à chaque compilation. Les builds locaux peuvent réutiliser leur certificat via -SigningThumbprint. Aucune clé privée n’est publiée. Ces mécanismes détectent des modifications mais peuvent être contournés en remplaçant le programme lui-même.

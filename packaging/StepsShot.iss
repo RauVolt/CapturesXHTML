@@ -4,7 +4,7 @@
 [Setup]
 AppId={{4C05EE44-EE4F-40C3-8686-294F94E78257}
 AppName=StepsShot
-AppVersion=1.0.2
+AppVersion=1.0.3
 DefaultDirName={localappdata}\Programs\StepsShot
 DefaultGroupName=StepsShot
 PrivilegesRequired=lowest
@@ -13,13 +13,17 @@ DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 MinVersion=10.0
 OutputDir=..\installer
-OutputBaseFilename=StepsShot-1.0.2-Setup
+OutputBaseFilename=StepsShot-1.0.3-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\assets\capture.ico
 UninstallDisplayIcon={app}\StepsShot.exe
 CloseApplications=yes
+#ifdef SignBuild
+SignTool=stepssign
+SignedUninstaller=yes
+#endif
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 [Files]
@@ -27,6 +31,7 @@ Source: "{#AppDist}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cr
 [Icons]
 Name: "{userprograms}\StepsShot"; Filename: "{app}\StepsShot.exe"
 [InstallDelete]
+Type: filesandordirs; Name: "{app}\_internal"
 Type: files; Name: "{userprograms}\CapturesXHTML.lnk"
 Type: files; Name: "{app}\CapturesXHTML.exe"
 [Run]

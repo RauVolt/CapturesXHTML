@@ -229,7 +229,7 @@ class ScrollFrame(ttk.Frame):
 class CaptureApp:
     def __init__(self, root):
         self.root = root
-        root.title('StepsShot · 1.0.2')
+        root.title('StepsShot · 1.0.3')
         root.geometry('1080x900')
         root.minsize(780, 520)
         icon = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent)) / 'assets' / 'capture.ico'
@@ -316,7 +316,7 @@ class CaptureApp:
         name.pack(side='left')
         tk.Label(name,text='StepsShot',bg=ink,fg='white',font=('Segoe UI Semibold',28)).pack(anchor='w')
         tk.Label(name,text='Vos étapes deviennent un guide modifiable.',bg=ink,fg='#b6cbd5',font=('Segoe UI',11)).pack(anchor='w')
-        tk.Label(top,text='1.0.2  /  WINDOWS',bg='#20394b',fg='#9ce6d7',padx=14,pady=8,font=('Segoe UI Semibold',9)).pack(side='right')
+        tk.Label(top,text='1.0.3  /  WINDOWS',bg='#20394b',fg='#9ce6d7',padx=14,pady=8,font=('Segoe UI Semibold',9)).pack(side='right')
         tk.Label(hero,text='NOMMER    →    CHOISIR L’ÉCRAN    →    CAPTURER    →    COMPLÉTER DANS WORD',
                  bg=ink,fg='#8fdbcd',font=('Segoe UI Semibold',9)).pack(anchor='w',pady=(18,0))
         card = ttk.Frame(shell,padding=24,style='Card.TFrame')
@@ -685,6 +685,24 @@ class CaptureApp:
 
 
 if __name__ == '__main__':
+    if getattr(sys, 'frozen', False):
+        from integrity import verify_installation
+        try:
+            verify_installation(Path(sys.executable).parent)
+        except Exception as exc:
+            if len(sys.argv) == 3 and sys.argv[1] == '--integrity-report':
+                Path(sys.argv[2]).write_text(json.dumps({'ok': False, 'error': str(exc)}), encoding='utf-8')
+                sys.exit(2)
+            # No automatic bypass: use the trusted installer to restore the files.
+            ctypes.windll.user32.MessageBoxW(None,
+                'Les fichiers de StepsShot sont incomplets ou modifiés.\n'
+                'Réinstallez l’application depuis votre installateur de confiance.\n\n' + str(exc),
+                'StepsShot — contrôle d’intégrité', 16)
+            sys.exit(2)
+        if len(sys.argv) == 3 and sys.argv[1] == '--integrity-report':
+            Path(sys.argv[2]).write_text(json.dumps({'ok': True}), encoding='utf-8')
+            sys.exit(0)
+
     try:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID.argtypes = [ctypes.c_wchar_p]
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('RauVolt.StepsShot')
